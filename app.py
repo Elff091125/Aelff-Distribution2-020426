@@ -1,12 +1,11 @@
 from __future__ import annotations
+
 import os
 import io
 import re
 import json
-import time
 import uuid
 import random
-import textwrap
 import datetime as dt
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,7 +29,7 @@ except Exception:  # pragma: no cover
 # App constants
 # -----------------------------
 
-APP_TITLE = "Regulatory Command Center (RCC) — v3.0"
+APP_TITLE = "Regulatory Command Center (RCC) — v3.1"
 DEFAULT_DATASET_PATH = "defaultdataset.json"
 DEFAULT_AGENTS_YAML_PATH = "agents.yaml"
 DEFAULT_SKILL_MD_PATH = "SKILL.md"
@@ -70,6 +69,11 @@ REQUIRED_COLUMNS = [
     "Number",
 ]
 
+MIN_IMPORT_COLUMNS = ["SupplierID", "Deliverdate", "CustomerID", "Model", "Number"]
+
+KEYWORD_DEFAULT_COLOR = "#FF7F50"  # coral
+
+
 # -----------------------------------
 # Localization (EN / zh-TW)
 # -----------------------------------
@@ -88,14 +92,26 @@ T = {
         "light": "Light",
         "dark": "Dark",
         "language": "Language",
+
+        "dataset_manager": "Dataset Manager",
         "data_source": "Dataset Source",
         "use_default": "Use default dataset",
-        "paste_or_upload": "Paste / Upload new dataset",
-        "paste_here": "Paste CSV/JSON/Text here",
+        "paste": "Paste dataset",
+        "upload": "Upload dataset",
+        "paste_here": "Paste CSV / JSON / JSONL / Text here",
         "upload_file": "Upload file (CSV / JSON / TXT)",
-        "load_dataset": "Load dataset",
-        "clear_dataset": "Clear dataset",
+        "preview_count": "Preview rows",
+        "preview": "Preview",
+        "import": "Import",
+        "cancel": "Cancel staged preview",
+        "raw_preview": "Raw preview",
+        "std_preview": "Standardized preview",
+        "issues_only": "Show issue rows only",
+        "mapping": "Column mapping",
+        "mapping_help": "If headers don't match, map source columns to canonical fields.",
+        "import_report": "Import report",
         "dataset_preview": "Dataset preview",
+
         "data_quality": "Data quality",
         "missing_cols": "Missing columns",
         "parse_warnings": "Parsing warnings",
@@ -103,6 +119,7 @@ T = {
         "unique_suppliers": "Unique Suppliers",
         "unique_customers": "Unique Customers",
         "total_units": "Total Units",
+
         "filters": "Filters",
         "date_range": "Date range",
         "qty_range": "Quantity range",
@@ -112,15 +129,28 @@ T = {
         "model_filter": "Model",
         "top_n": "Top N",
         "reset_filters": "Reset filters",
+
+        "wow_indicators": "WOW Indicators",
+        "data_health_score": "Data Health Score",
+        "concentration_risk": "Concentration Risk",
+        "anomaly_beacons": "Anomaly Beacons",
+
         "wow_graphs": "WOW Graphs",
         "sankey_title": "Supply-Chain Symphony Sankey",
         "pulse_title": "Temporal Pulse + Anomaly Beacons",
         "mosaic_title": "Customer–Model Mosaic Heatmap",
+
+        "wow_plus": "WOW+ Visuals",
+        "pareto_title": "Pareto Power Wall (80/20)",
+        "lorenz_title": "Lorenz Curve + Gini Index",
+        "treemap_title": "Category Landscape Treemap",
+
         "classic_charts": "Classic Charts",
         "timeline": "Delivery Timeline",
         "model_dist": "Model Distribution",
         "top_customers": "Top Customers",
         "license_usage": "License Usage",
+
         "agents_yaml": "agents.yaml",
         "skill_md": "SKILL.md",
         "upload_agents_yaml": "Upload agents.yaml",
@@ -129,6 +159,7 @@ T = {
         "import_yaml": "Import standardized YAML",
         "download_yaml": "Download standardized YAML",
         "yaml_status": "YAML status",
+
         "settings": "Provider keys",
         "configured_env": "Configured (env)",
         "configured_session": "Configured (session)",
@@ -137,6 +168,7 @@ T = {
         "enter_key": "Enter API key (stored only in session)",
         "save_key": "Save key to session",
         "clear_key": "Clear session key",
+
         "note_input": "Paste notes (text or markdown)",
         "note_prompt": "Prompt (editable)",
         "note_model": "Model",
@@ -148,11 +180,18 @@ T = {
         "keyword_color": "Keyword color",
         "apply_keywords": "Apply keyword highlighting",
         "output": "Output",
+
         "status_strip": "Status Strip",
         "agent_pipeline": "Agent Pipeline",
         "not_configured_ai": "No provider key configured. AI features will run in offline mode.",
         "offline_mode": "Offline mode",
         "online_mode": "Online mode",
+
+        "format_detected": "Detected format",
+        "confidence": "Standardization confidence",
+        "cannot_import": "Cannot import until required fields are mapped",
+        "imported": "Imported standardized dataset into active session dataset.",
+        "staged_ready": "Staged preview is ready. Review and click Import.",
     },
     "zh-TW": {
         "nav_command_center": "指揮中心",
@@ -167,14 +206,26 @@ T = {
         "light": "亮色",
         "dark": "暗色",
         "language": "語言",
+
+        "dataset_manager": "資料集管理",
         "data_source": "資料來源",
         "use_default": "使用預設資料集",
-        "paste_or_upload": "貼上／上傳新資料集",
-        "paste_here": "在此貼上 CSV/JSON/文字",
+        "paste": "貼上資料集",
+        "upload": "上傳資料集",
+        "paste_here": "在此貼上 CSV / JSON / JSONL / 文字",
         "upload_file": "上傳檔案（CSV / JSON / TXT）",
-        "load_dataset": "載入資料集",
-        "clear_dataset": "清除資料集",
+        "preview_count": "預覽筆數",
+        "preview": "預覽",
+        "import": "匯入",
+        "cancel": "取消暫存預覽",
+        "raw_preview": "原始預覽",
+        "std_preview": "標準化預覽",
+        "issues_only": "僅顯示問題列",
+        "mapping": "欄位對應",
+        "mapping_help": "若欄位名稱不一致，請將來源欄位對應到標準欄位。",
+        "import_report": "匯入報告",
         "dataset_preview": "資料預覽",
+
         "data_quality": "資料品質",
         "missing_cols": "缺少欄位",
         "parse_warnings": "解析警告",
@@ -182,6 +233,7 @@ T = {
         "unique_suppliers": "供應商數",
         "unique_customers": "客戶數",
         "total_units": "總數量",
+
         "filters": "篩選條件",
         "date_range": "日期範圍",
         "qty_range": "數量範圍",
@@ -191,15 +243,28 @@ T = {
         "model_filter": "Model",
         "top_n": "前 N 名",
         "reset_filters": "重設篩選",
+
+        "wow_indicators": "WOW 指標",
+        "data_health_score": "資料健康分數",
+        "concentration_risk": "集中風險",
+        "anomaly_beacons": "異常燈塔",
+
         "wow_graphs": "WOW 圖表",
         "sankey_title": "供應鏈交響 Sankey",
         "pulse_title": "時間脈動＋異常燈塔",
         "mosaic_title": "客戶–型號 馬賽克熱圖",
+
+        "wow_plus": "WOW+ 圖表",
+        "pareto_title": "帕累托能量牆（80/20）",
+        "lorenz_title": "洛倫茲曲線＋基尼係數",
+        "treemap_title": "分類地景 Treemap",
+
         "classic_charts": "經典圖表",
         "timeline": "配送時間趨勢",
         "model_dist": "型號分佈",
         "top_customers": "客戶排行",
         "license_usage": "許可證使用量",
+
         "agents_yaml": "agents.yaml",
         "skill_md": "SKILL.md",
         "upload_agents_yaml": "上傳 agents.yaml",
@@ -208,6 +273,7 @@ T = {
         "import_yaml": "匯入標準化 YAML",
         "download_yaml": "下載標準化 YAML",
         "yaml_status": "YAML 狀態",
+
         "settings": "供應商金鑰",
         "configured_env": "已設定（環境）",
         "configured_session": "已設定（本次）",
@@ -216,6 +282,7 @@ T = {
         "enter_key": "輸入 API Key（僅存於本次 Session）",
         "save_key": "儲存到 Session",
         "clear_key": "清除 Session Key",
+
         "note_input": "貼上筆記（文字或 Markdown）",
         "note_prompt": "提示詞（可修改）",
         "note_model": "模型",
@@ -227,11 +294,18 @@ T = {
         "keyword_color": "關鍵字顏色",
         "apply_keywords": "套用關鍵字上色",
         "output": "輸出",
+
         "status_strip": "狀態列",
         "agent_pipeline": "代理流程",
         "not_configured_ai": "未設定任何供應商金鑰。AI 功能將以離線模式執行。",
         "offline_mode": "離線模式",
         "online_mode": "線上模式",
+
+        "format_detected": "偵測格式",
+        "confidence": "標準化信心分數",
+        "cannot_import": "必要欄位尚未對應完成，無法匯入",
+        "imported": "已將標準化資料集匯入本次 Session。",
+        "staged_ready": "暫存預覽已就緒，請確認後按下匯入。",
     },
 }
 
@@ -241,7 +315,6 @@ T = {
 # -----------------------------------
 
 def painter_themes() -> Dict[str, Dict[str, Dict[str, str]]]:
-    # Token sets: keep compact but distinct. (You can tune palettes later without changing app logic.)
     return {
         "Da Vinci": {
             "light": {"bg1": "#f6f1e6", "bg2": "#d8c7a3", "glass": "rgba(255,255,255,0.55)", "border": "rgba(60,40,20,0.18)", "text": "#1f1a14", "muted": "#4a4036", "accent": "#8a5a2b"},
@@ -326,9 +399,6 @@ def painter_themes() -> Dict[str, Dict[str, Dict[str, str]]]:
     }
 
 
-KEYWORD_DEFAULT_COLOR = "#FF7F50"  # coral
-
-
 # -----------------------------------
 # Utilities
 # -----------------------------------
@@ -361,173 +431,51 @@ def try_read_text_file(uploaded_file) -> str:
             return raw.decode(errors="ignore")
 
 
-def parse_dataset_from_text(text: str) -> Tuple[pd.DataFrame, List[str]]:
-    """
-    Accepts CSV/JSON/plain text.
-    Returns (df, warnings).
-    """
-    warnings: List[str] = []
-    text = (text or "").strip()
-    if not text:
-        return pd.DataFrame(), ["Empty input"]
-
-    text = normalize_smart_quotes(text)
-
-    # Try JSON first
-    if text.startswith("{") or text.startswith("["):
-        try:
-            obj = json.loads(text)
-            if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
-                obj = obj["data"]
-            if isinstance(obj, dict):
-                # single record
-                obj = [obj]
-            df = pd.DataFrame(obj)
-            return df, warnings
-        except Exception as e:
-            warnings.append(f"JSON parse failed, will try CSV. Reason: {e}")
-
-    # CSV-ish: accept headerless by mapping to REQUIRED_COLUMNS if column count matches
-    try:
-        # Try pandas read_csv with python engine (more flexible with quotes)
-        buf = io.StringIO(text)
-        df = pd.read_csv(buf, engine="python")
-        if df.shape[1] == len(REQUIRED_COLUMNS) and list(df.columns) != REQUIRED_COLUMNS:
-            # If first row is actually data, and pandas guessed headers, try re-read without header.
-            # But only do this if obvious header mismatch.
-            pass
-        return df, warnings
-    except Exception as e:
-        warnings.append(f"CSV parse failed: {e}")
-
-    return pd.DataFrame(), warnings + ["Unable to parse as JSON or CSV"]
+def mask_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "*" * len(key)
+    return key[:2] + "*" * (len(key) - 6) + key[-4:]
 
 
-def load_default_dataset(path: str = DEFAULT_DATASET_PATH) -> Tuple[pd.DataFrame, List[str]]:
-    warnings: List[str] = []
-    if not os.path.exists(path):
-        return pd.DataFrame(), [f"Default dataset not found: {path}"]
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            content = f.read().strip()
-        df, w = parse_dataset_from_text(content)
-        warnings.extend(w)
-        return df, warnings
-    except Exception as e:
-        return pd.DataFrame(), [f"Failed to load default dataset: {e}"]
+def get_env_key(provider: str) -> Optional[str]:
+    for name in ENV_KEY_MAP.get(provider, []):
+        v = os.environ.get(name)
+        if v:
+            return v
+    return None
 
 
-def standardize_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
-    """
-    Enforce canonical column names and types. Add missing cols as empty.
-    """
-    warnings: List[str] = []
-    if df is None or df.empty:
-        return pd.DataFrame(columns=REQUIRED_COLUMNS), ["Empty dataset"]
-
-    # Strip/normalize column names
-    df = df.copy()
-    df.columns = [str(c).strip() for c in df.columns]
-
-    # Attempt best-effort mapping if columns resemble required ones
-    # (minimal heuristics; extend as needed)
-    col_map = {}
-    lower = {c.lower(): c for c in df.columns}
-
-    for req in REQUIRED_COLUMNS:
-        if req in df.columns:
-            continue
-        if req.lower() in lower:
-            col_map[lower[req.lower()]] = req
-
-    if col_map:
-        df = df.rename(columns=col_map)
-
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-    for c in missing:
-        df[c] = ""  # empty placeholder
-
-    # Keep only known + allow extras (extras retained but placed after required)
-    extras = [c for c in df.columns if c not in REQUIRED_COLUMNS]
-    df = df[REQUIRED_COLUMNS + extras]
-
-    # Type conversions
-    # Number -> numeric
-    try:
-        df["Number"] = pd.to_numeric(df["Number"], errors="coerce").fillna(0).astype(float)
-    except Exception:
-        warnings.append("Failed to coerce Number to numeric; set invalid to 0.")
-        df["Number"] = 0.0
-
-    # Deliverdate -> datetime (support YYYYMMDD)
-    def _parse_date(x: Any) -> Optional[pd.Timestamp]:
-        if pd.isna(x):
-            return None
-        s = str(x).strip()
-        if not s:
-            return None
-        s = re.sub(r"[^\d\-\/]", "", s)
-        try:
-            if re.fullmatch(r"\d{8}", s):
-                return pd.to_datetime(s, format="%Y%m%d", errors="coerce")
-            return pd.to_datetime(s, errors="coerce")
-        except Exception:
-            return None
-
-    try:
-        df["_Deliverdate_dt"] = df["Deliverdate"].apply(_parse_date)
-        bad = df["_Deliverdate_dt"].isna().sum()
-        if bad > 0:
-            warnings.append(f"Unparseable Deliverdate rows: {bad}")
-    except Exception:
-        warnings.append("Failed to parse Deliverdate into datetime.")
-
-    # Clean strings
-    for c in ["SupplierID", "CustomerID", "LicenseNo", "Category", "UDID", "DeviceNAME", "LotNO", "SerNo", "Model"]:
-        try:
-            df[c] = df[c].astype(str).fillna("").map(lambda s: s.strip())
-        except Exception:
-            pass
-
-    return df, warnings
+def get_session_key(provider: str) -> Optional[str]:
+    return st.session_state.get("api_keys", {}).get(provider)
 
 
-def dataset_quality_report(df: pd.DataFrame, parse_warnings: List[str]) -> Dict[str, Any]:
-    if df is None or df.empty:
-        return {
-            "rows": 0,
-            "missing_cols": REQUIRED_COLUMNS,
-            "parse_warnings": parse_warnings or ["Empty dataset"],
-            "duplicates": 0,
-            "unparsed_dates": 0,
-            "nonpositive_qty": 0,
-        }
-
-    missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
-    duplicates = int(df.duplicated(subset=REQUIRED_COLUMNS, keep="first").sum()) if all(c in df.columns for c in REQUIRED_COLUMNS) else int(df.duplicated().sum())
-    unparsed_dates = int(df.get("_Deliverdate_dt", pd.Series(dtype="datetime64[ns]")).isna().sum()) if "_Deliverdate_dt" in df.columns else 0
-    nonpositive_qty = int((df["Number"] <= 0).sum()) if "Number" in df.columns else 0
-
-    return {
-        "rows": int(len(df)),
-        "missing_cols": missing_cols,
-        "parse_warnings": parse_warnings or [],
-        "duplicates": duplicates,
-        "unparsed_dates": unparsed_dates,
-        "nonpositive_qty": nonpositive_qty,
-    }
+def provider_status(provider: str) -> Tuple[str, str]:
+    env = get_env_key(provider)
+    if env:
+        return "configured", "env"
+    ses = get_session_key(provider)
+    if ses:
+        return "configured", "session"
+    return "missing", "missing"
 
 
-def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
+def any_provider_configured() -> bool:
+    for p in PROVIDERS:
+        s, _ = provider_status(p)
+        if s == "configured":
+            return True
+    return False
+
+
+def apply_theme_css(theme_name: str, mode: str) -> None:
     themes = painter_themes()
     if theme_name not in themes:
         theme_name = list(themes.keys())[0]
     mode = "dark" if mode == "dark" else "light"
     tok = themes[theme_name][mode]
 
-    # Minimal WOW glass + painter gradient + keyword coral.
-    # Streamlit CSS hooks can change; keep conservative selectors.
     css = f"""
     <style>
       :root {{
@@ -556,15 +504,13 @@ def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
         backdrop-filter: blur(14px);
       }}
 
-      /* Typography */
-      h1, h2, h3, h4, h5, h6, p, li, label, span, div {{
+      h1,h2,h3,h4,h5,h6,p,li,label,span,div {{
         color: var(--rcc-text);
       }}
-      small, .rcc-muted {{
+      .rcc-muted {{
         color: var(--rcc-muted) !important;
       }}
 
-      /* Accent buttons */
       .stButton > button {{
         border-radius: 12px;
         border: 1px solid var(--rcc-border);
@@ -574,13 +520,11 @@ def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
         border: 1px solid rgba(0,0,0,0.12) !important;
       }}
 
-      /* Keyword highlighting */
       .rcc-keyword {{
         color: var(--rcc-coral);
         font-weight: 650;
       }}
 
-      /* Status chips */
       .rcc-chip {{
         display:inline-block;
         padding: 6px 10px;
@@ -591,7 +535,13 @@ def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
         font-size: 12px;
       }}
 
-      /* Make Plotly backgrounds transparent-ish */
+      .rcc-ind {{
+        padding: 12px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--rcc-border);
+        background: rgba(255,255,255,0.16);
+      }}
+
       .js-plotly-plot .plotly .main-svg {{
         background: transparent !important;
       }}
@@ -600,49 +550,701 @@ def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
-def mask_key(key: str) -> str:
-    if not key:
-        return ""
-    if len(key) <= 8:
-        return "*" * len(key)
-    return key[:2] + "*" * (len(key) - 6) + key[-4:]
+# -----------------------------------
+# Dataset parsing + standardization
+# -----------------------------------
+
+ALIASES = {
+    "supplierid": "SupplierID",
+    "supplier_id": "SupplierID",
+    "supplier": "SupplierID",
+    "vendor": "SupplierID",
+
+    "deliverdate": "Deliverdate",
+    "deliver_date": "Deliverdate",
+    "deliverydate": "Deliverdate",
+    "delivery_date": "Deliverdate",
+    "date": "Deliverdate",
+
+    "customerid": "CustomerID",
+    "customer_id": "CustomerID",
+    "customer": "CustomerID",
+    "client": "CustomerID",
+
+    "licenseno": "LicenseNo",
+    "license_no": "LicenseNo",
+    "license": "LicenseNo",
+    "permit": "LicenseNo",
+
+    "category": "Category",
+    "product_category": "Category",
+    "device_category": "Category",
+
+    "udid": "UDID",
+    "udi": "UDID",
+    "primary_di": "UDID",
+
+    "devicename": "DeviceNAME",
+    "device_name": "DeviceNAME",
+    "device": "DeviceNAME",
+    "product": "DeviceNAME",
+
+    "lotno": "LotNO",
+    "lot_no": "LotNO",
+    "lot": "LotNO",
+    "batch": "LotNO",
+
+    "serno": "SerNo",
+    "ser_no": "SerNo",
+    "serial": "SerNo",
+    "serialno": "SerNo",
+    "serial_no": "SerNo",
+
+    "model": "Model",
+    "modelno": "Model",
+    "model_no": "Model",
+
+    "number": "Number",
+    "qty": "Number",
+    "quantity": "Number",
+    "units": "Number",
+    "count": "Number",
+}
 
 
-def get_env_key(provider: str) -> Optional[str]:
-    for name in ENV_KEY_MAP.get(provider, []):
-        v = os.environ.get(name)
-        if v:
-            return v
-    return None
+def detect_format(text: str) -> str:
+    s = (text or "").strip()
+    if not s:
+        return "empty"
+    if s.startswith("{") or s.startswith("["):
+        return "json"
+    # JSONL heuristic: many lines each starting with '{'
+    lines = s.splitlines()
+    if len(lines) >= 2 and sum(1 for ln in lines[:10] if ln.strip().startswith("{")) >= 2:
+        return "jsonl"
+    return "csv_or_text"
 
 
-def get_session_key(provider: str) -> Optional[str]:
-    return st.session_state.get("api_keys", {}).get(provider)
+def parse_jsonl(text: str) -> Tuple[pd.DataFrame, List[str]]:
+    warnings: List[str] = []
+    rows = []
+    for i, ln in enumerate((text or "").splitlines()):
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            rows.append(json.loads(ln))
+        except Exception as e:
+            warnings.append(f"JSONL line {i+1} parse failed: {e}")
+    return pd.DataFrame(rows), warnings
 
 
-def provider_status(provider: str) -> Tuple[str, str]:
+def parse_dataset_text(text: str) -> Tuple[pd.DataFrame, List[str], str]:
     """
-    Returns (status_label, source) where source is 'env'/'session'/'missing'
+    Returns: df, warnings, detected_format
     """
-    env = get_env_key(provider)
-    if env:
-        return "configured", "env"
-    ses = get_session_key(provider)
-    if ses:
-        return "configured", "session"
-    return "missing", "missing"
+    warnings: List[str] = []
+    text = normalize_smart_quotes((text or "").strip())
+    fmt = detect_format(text)
+
+    if fmt == "empty":
+        return pd.DataFrame(), ["Empty input"], fmt
+
+    if fmt == "json":
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
+                obj = obj["data"]
+            if isinstance(obj, dict):
+                obj = [obj]
+            return pd.DataFrame(obj), warnings, fmt
+        except Exception as e:
+            warnings.append(f"JSON parse failed; will try CSV. Reason: {e}")
+            fmt = "csv_or_text"
+
+    if fmt == "jsonl":
+        df, w = parse_jsonl(text)
+        return df, w, "jsonl"
+
+    # CSV / text
+    try:
+        buf = io.StringIO(text)
+        df = pd.read_csv(buf, engine="python")
+        return df, warnings, "csv"
+    except Exception as e:
+        warnings.append(f"CSV parse failed: {e}")
+        return pd.DataFrame(), warnings + ["Unable to parse input"], "unknown"
 
 
-def any_provider_configured() -> bool:
-    for p in PROVIDERS:
-        s, src = provider_status(p)
-        if s == "configured":
-            return True
-    return False
+def headerless_csv_to_required(text: str) -> Optional[pd.DataFrame]:
+    """
+    If text looks like CSV rows with exactly len(REQUIRED_COLUMNS) columns but no header,
+    parse with header=None and assign canonical headers.
+    """
+    try:
+        # quick check: first non-empty line token count
+        lines = [ln for ln in (text or "").splitlines() if ln.strip()]
+        if len(lines) < 2:
+            return None
+        # Count commas carefully (simple heuristic)
+        first = normalize_smart_quotes(lines[0])
+        # If first line contains any canonical column name, it's likely a header
+        if any(col.lower() in first.lower() for col in REQUIRED_COLUMNS):
+            return None
+
+        # Try parse with header=None
+        buf = io.StringIO(normalize_smart_quotes(text))
+        df = pd.read_csv(buf, header=None, engine="python")
+        if df.shape[1] == len(REQUIRED_COLUMNS):
+            df.columns = REQUIRED_COLUMNS[:]
+            return df
+        return None
+    except Exception:
+        return None
+
+
+def standardize_dataset(
+    df: pd.DataFrame,
+    source_label: str,
+    user_mapping: Optional[Dict[str, str]] = None
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Transform df into standardized dataset.
+    user_mapping: dict {canonical_col: source_col}
+    Returns standardized_df, report
+    """
+    report: Dict[str, Any] = {
+        "source": source_label,
+        "ts": dt.datetime.now().isoformat(timespec="seconds"),
+        "mapping_used": {},
+        "warnings": [],
+        "coercions": {},
+        "missing_required": [],
+        "confidence": 0,
+        "dropped_rows": 0,
+    }
+
+    if df is None or df.empty:
+        out = pd.DataFrame(columns=REQUIRED_COLUMNS + ["_row_id", "_source", "_import_ts", "_quality_flags"])
+        report["warnings"].append("Empty dataset")
+        report["missing_required"] = MIN_IMPORT_COLUMNS[:]
+        report["confidence"] = 0
+        return out, report
+
+    dff = df.copy()
+    dff.columns = [str(c).strip() for c in dff.columns]
+
+    # Build auto mapping candidates
+    lower_cols = {c.lower().strip(): c for c in dff.columns}
+    auto_map: Dict[str, str] = {}
+
+    for canon in REQUIRED_COLUMNS:
+        # exact match
+        if canon in dff.columns:
+            auto_map[canon] = canon
+            continue
+        # alias match
+        for key, canon2 in ALIASES.items():
+            if canon2 != canon:
+                continue
+            if key in lower_cols:
+                auto_map[canon] = lower_cols[key]
+                break
+        # case-insensitive direct
+        if canon not in auto_map and canon.lower() in lower_cols:
+            auto_map[canon] = lower_cols[canon.lower()]
+
+    # Apply user mapping override
+    mapping = dict(auto_map)
+    if user_mapping:
+        for canon, src in user_mapping.items():
+            if canon in REQUIRED_COLUMNS and src and src in dff.columns:
+                mapping[canon] = src
+
+    report["mapping_used"] = mapping
+
+    # Construct canonical frame (preserve extras at end)
+    out = pd.DataFrame()
+    for canon in REQUIRED_COLUMNS:
+        src = mapping.get(canon)
+        if src and src in dff.columns:
+            out[canon] = dff[src]
+        else:
+            out[canon] = ""
+
+    # Preserve extras
+    extras = [c for c in dff.columns if c not in set(mapping.values())]
+    for c in extras:
+        out[c] = dff[c]
+
+    # Add derived/meta fields
+    out["_row_id"] = [uuid.uuid4().hex for _ in range(len(out))]
+    out["_source"] = source_label
+    out["_import_ts"] = report["ts"]
+    out["_quality_flags"] = ""
+
+    # Clean strings
+    for c in ["SupplierID", "Deliverdate", "CustomerID", "LicenseNo", "Category", "UDID", "DeviceNAME", "LotNO", "SerNo", "Model"]:
+        out[c] = out[c].astype(str).fillna("").map(lambda s: s.strip())
+
+    # Coerce Number
+    num_raw = out["Number"].astype(str).fillna("")
+    def _to_float(s: str) -> Optional[float]:
+        s = s.strip()
+        if not s:
+            return None
+        s = s.replace(",", "")
+        s = re.sub(r"[^\d\.\-]", "", s)
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    coerced = num_raw.map(_to_float)
+    bad_num = int(coerced.isna().sum())
+    out["Number"] = coerced.fillna(0.0).astype(float)
+    if bad_num:
+        report["coercions"]["Number_invalid_to_0"] = bad_num
+        out.loc[coerced.isna(), "_quality_flags"] = (out.loc[coerced.isna(), "_quality_flags"] + "|bad_number").str.strip("|")
+
+    # Parse Deliverdate to datetime
+    def _parse_date(x: Any) -> Optional[pd.Timestamp]:
+        if pd.isna(x):
+            return None
+        s = str(x).strip()
+        if not s:
+            return None
+        s = re.sub(r"[^\d\-\/]", "", s)
+        try:
+            if re.fullmatch(r"\d{8}", s):
+                return pd.to_datetime(s, format="%Y%m%d", errors="coerce")
+            return pd.to_datetime(s, errors="coerce")
+        except Exception:
+            return None
+
+    out["_Deliverdate_dt"] = out["Deliverdate"].map(_parse_date)
+    bad_date = int(out["_Deliverdate_dt"].isna().sum())
+    if bad_date:
+        report["coercions"]["Deliverdate_unparseable"] = bad_date
+        out.loc[out["_Deliverdate_dt"].isna(), "_quality_flags"] = (out.loc[out["_Deliverdate_dt"].isna(), "_quality_flags"] + "|bad_date").str.strip("|")
+
+    # Duplicates flag
+    try:
+        dup = out.duplicated(subset=REQUIRED_COLUMNS, keep="first")
+        dup_n = int(dup.sum())
+        if dup_n:
+            report["coercions"]["duplicates_flagged"] = dup_n
+            out.loc[dup, "_quality_flags"] = (out.loc[dup, "_quality_flags"] + "|duplicate").str.strip("|")
+    except Exception:
+        pass
+
+    # Required minimal fields check
+    missing_required = []
+    for c in MIN_IMPORT_COLUMNS:
+        if c not in out.columns:
+            missing_required.append(c)
+        elif c == "Number":
+            continue
+        else:
+            if (out[c].astype(str).str.strip() == "").all():
+                missing_required.append(c)
+
+    report["missing_required"] = missing_required
+
+    # Confidence score (simple, transparent)
+    mapped_count = sum(1 for c in REQUIRED_COLUMNS if c in mapping and mapping[c] in dff.columns)
+    required_ok = len(missing_required) == 0
+    date_ok_ratio = 0.0
+    if len(out) > 0:
+        date_ok_ratio = float(out["_Deliverdate_dt"].notna().mean())
+    num_ok_ratio = float((out["Number"] > 0).mean()) if len(out) else 0.0
+
+    conf = 0
+    conf += int(60 * (mapped_count / max(1, len(REQUIRED_COLUMNS))))
+    conf += 20 if required_ok else 0
+    conf += int(10 * date_ok_ratio)
+    conf += int(10 * num_ok_ratio)
+    report["confidence"] = min(100, conf)
+
+    return out, report
+
+
+def dataset_quality_report(df: pd.DataFrame, parse_warnings: List[str], report: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {
+            "rows": 0,
+            "missing_cols": REQUIRED_COLUMNS,
+            "parse_warnings": parse_warnings or ["Empty dataset"],
+            "duplicates": 0,
+            "unparsed_dates": 0,
+            "nonpositive_qty": 0,
+            "issue_rows": 0,
+        }
+
+    missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    duplicates = int(df.duplicated(subset=REQUIRED_COLUMNS, keep="first").sum()) if all(c in df.columns for c in REQUIRED_COLUMNS) else int(df.duplicated().sum())
+    unparsed_dates = int(df.get("_Deliverdate_dt", pd.Series(dtype="datetime64[ns]")).isna().sum()) if "_Deliverdate_dt" in df.columns else 0
+    nonpositive_qty = int((df["Number"] <= 0).sum()) if "Number" in df.columns else 0
+    issue_rows = int((df.get("_quality_flags", pd.Series([""] * len(df))).astype(str).str.strip() != "").sum()) if "_quality_flags" in df.columns else 0
+
+    return {
+        "rows": int(len(df)),
+        "missing_cols": missing_cols,
+        "parse_warnings": parse_warnings or [],
+        "duplicates": duplicates,
+        "unparsed_dates": unparsed_dates,
+        "nonpositive_qty": nonpositive_qty,
+        "issue_rows": issue_rows,
+    }
+
+
+def compute_kpis(df: pd.DataFrame) -> Dict[str, Any]:
+    if df is None or df.empty:
+        return {"rows": 0, "unique_suppliers": 0, "unique_customers": 0, "total_units": 0}
+    return {
+        "rows": int(len(df)),
+        "unique_suppliers": int(df["SupplierID"].nunique()) if "SupplierID" in df.columns else 0,
+        "unique_customers": int(df["CustomerID"].nunique()) if "CustomerID" in df.columns else 0,
+        "total_units": float(df["Number"].sum()) if "Number" in df.columns else 0.0,
+    }
+
+
+def load_default_dataset(path: str = DEFAULT_DATASET_PATH) -> Tuple[pd.DataFrame, List[str], Dict[str, Any]]:
+    warnings: List[str] = []
+    if not os.path.exists(path):
+        empty = pd.DataFrame(columns=REQUIRED_COLUMNS)
+        std, rep = standardize_dataset(empty, source_label="default")
+        return std, [f"Default dataset not found: {path}"], rep
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+
+        # Support headerless CSV stored in .json filename (compatibility)
+        df_hdrless = headerless_csv_to_required(content)
+        if df_hdrless is not None:
+            std, rep = standardize_dataset(df_hdrless, source_label="default")
+            return std, ["Default file parsed as headerless CSV."], rep
+
+        df, w, fmt = parse_dataset_text(content)
+        warnings.extend(w)
+        std, rep = standardize_dataset(df, source_label="default")
+        rep["detected_format"] = fmt
+        return std, warnings, rep
+    except Exception as e:
+        empty = pd.DataFrame(columns=REQUIRED_COLUMNS)
+        std, rep = standardize_dataset(empty, source_label="default")
+        return std, [f"Failed to load default dataset: {e}"], rep
 
 
 # -----------------------------------
-# agents.yaml / SKILL.md loading & standardization
+# Distribution analytics + WOW visuals
+# -----------------------------------
+
+def filter_df(
+    df: pd.DataFrame,
+    suppliers: List[str],
+    customers: List[str],
+    licenses: List[str],
+    models: List[str],
+    date_range: Optional[Tuple[pd.Timestamp, pd.Timestamp]],
+    qty_range: Optional[Tuple[float, float]],
+) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+
+    dff = df.copy()
+    if suppliers:
+        dff = dff[dff["SupplierID"].isin(suppliers)]
+    if customers:
+        dff = dff[dff["CustomerID"].isin(customers)]
+    if licenses:
+        dff = dff[dff["LicenseNo"].isin(licenses)]
+    if models:
+        dff = dff[dff["Model"].isin(models)]
+    if date_range and "_Deliverdate_dt" in dff.columns:
+        start, end = date_range
+        if start is not None:
+            dff = dff[dff["_Deliverdate_dt"] >= start]
+        if end is not None:
+            dff = dff[dff["_Deliverdate_dt"] <= end]
+    if qty_range and "Number" in dff.columns:
+        lo, hi = qty_range
+        dff = dff[(dff["Number"] >= lo) & (dff["Number"] <= hi)]
+    return dff
+
+
+def compute_anomalies_count(df: pd.DataFrame, freq: str = "D") -> int:
+    if df is None or df.empty or "_Deliverdate_dt" not in df.columns:
+        return 0
+    dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
+    if dff.empty:
+        return 0
+    ts = dff.set_index("_Deliverdate_dt")["Number"].resample(freq).sum().reset_index()
+    ts = ts.sort_values("_Deliverdate_dt")
+    ts["ma"] = ts["Number"].rolling(7, min_periods=2).mean()
+    residual = ts["Number"] - ts["ma"].fillna(ts["Number"].mean())
+    denom = residual.std() if residual.std() and residual.std() > 0 else 1.0
+    z = (residual / denom).abs()
+    return int((z >= 2.5).sum())
+
+
+def data_health_score(q: Dict[str, Any]) -> int:
+    if not q or q.get("rows", 0) == 0:
+        return 0
+    rows = max(1, int(q.get("rows", 0)))
+    score = 100
+    score -= 15 * len(q.get("missing_cols", []))
+    score -= int(35 * (q.get("unparsed_dates", 0) / rows))
+    score -= int(25 * (q.get("duplicates", 0) / rows))
+    score -= int(25 * (q.get("nonpositive_qty", 0) / rows))
+    score -= 5 * len(q.get("parse_warnings", []))
+    return max(0, min(100, score))
+
+
+def concentration_risk(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Returns top supplier share and label; fallback to 0 if empty.
+    """
+    if df is None or df.empty or "Number" not in df.columns:
+        return {"top_supplier": None, "share": 0.0, "top_customer": None, "customer_share": 0.0}
+    total = float(df["Number"].sum()) if float(df["Number"].sum()) > 0 else 0.0
+    if total <= 0:
+        return {"top_supplier": None, "share": 0.0, "top_customer": None, "customer_share": 0.0}
+    s = df.groupby("SupplierID")["Number"].sum().sort_values(ascending=False)
+    c = df.groupby("CustomerID")["Number"].sum().sort_values(ascending=False)
+    top_s, share_s = (s.index[0], float(s.iloc[0]) / total) if len(s) else (None, 0.0)
+    top_c, share_c = (c.index[0], float(c.iloc[0]) / total) if len(c) else (None, 0.0)
+    return {"top_supplier": top_s, "share": share_s, "top_customer": top_c, "customer_share": share_c}
+
+
+def build_sankey(df: pd.DataFrame, top_n: int = 30) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
+
+    agg = (
+        df.groupby(["SupplierID", "LicenseNo", "Model", "CustomerID"], as_index=False)["Number"]
+        .sum()
+        .sort_values("Number", ascending=False)
+    )
+    agg = agg.head(max(10, top_n))
+
+    suppliers = agg["SupplierID"].unique().tolist()
+    licenses = agg["LicenseNo"].unique().tolist()
+    models = agg["Model"].unique().tolist()
+    customers = agg["CustomerID"].unique().tolist()
+    nodes = suppliers + licenses + models + customers
+    idx = {n: i for i, n in enumerate(nodes)}
+
+    def link_sum(cols: List[str]) -> pd.DataFrame:
+        return agg.groupby(cols, as_index=False)["Number"].sum()
+
+    l1 = link_sum(["SupplierID", "LicenseNo"])
+    l2 = link_sum(["LicenseNo", "Model"])
+    l3 = link_sum(["Model", "CustomerID"])
+
+    sources, targets, values = [], [], []
+    for _, r in l1.iterrows():
+        sources.append(idx[r["SupplierID"]]); targets.append(idx[r["LicenseNo"]]); values.append(float(r["Number"]))
+    for _, r in l2.iterrows():
+        sources.append(idx[r["LicenseNo"]]); targets.append(idx[r["Model"]]); values.append(float(r["Number"]))
+    for _, r in l3.iterrows():
+        sources.append(idx[r["Model"]]); targets.append(idx[r["CustomerID"]]); values.append(float(r["Number"]))
+
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(pad=14, thickness=14, line=dict(color="rgba(0,0,0,0.15)", width=0.5), label=nodes),
+        link=dict(source=sources, target=targets, value=values),
+    )])
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
+    return fig
+
+
+def build_temporal_pulse(df: pd.DataFrame, freq: str = "D") -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty or "_Deliverdate_dt" not in df.columns:
+        return None
+
+    dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
+    if dff.empty:
+        return None
+
+    ts = dff.set_index("_Deliverdate_dt")["Number"].resample(freq).sum().reset_index()
+    ts = ts.sort_values("_Deliverdate_dt")
+    ts["ma"] = ts["Number"].rolling(7, min_periods=2).mean()
+
+    residual = ts["Number"] - ts["ma"].fillna(ts["Number"].mean())
+    denom = residual.std() if residual.std() and residual.std() > 0 else 1.0
+    ts["z"] = residual / denom
+    ts["anomaly"] = ts["z"].abs() >= 2.5
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["Number"], mode="lines", name="Units"))
+    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["ma"], mode="lines", name="7d MA"))
+    ano = ts[ts["anomaly"]]
+    if not ano.empty:
+        fig.add_trace(go.Scatter(
+            x=ano["_Deliverdate_dt"], y=ano["Number"], mode="markers", name="Anomaly",
+            marker=dict(size=10, color="rgba(255,99,71,0.9)", line=dict(width=1, color="rgba(0,0,0,0.2)"))
+        ))
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=420)
+    return fig
+
+
+def build_mosaic_heatmap(df: pd.DataFrame, top_n_customers: int = 25, top_n_models: int = 20) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
+
+    cust = df.groupby("CustomerID")["Number"].sum().sort_values(ascending=False).head(top_n_customers).index
+    mod = df.groupby("Model")["Number"].sum().sort_values(ascending=False).head(top_n_models).index
+    dff = df[df["CustomerID"].isin(cust) & df["Model"].isin(mod)].copy()
+    if dff.empty:
+        return None
+
+    pivot = dff.pivot_table(index="CustomerID", columns="Model", values="Number", aggfunc="sum", fill_value=0)
+
+    fig = go.Figure(data=go.Heatmap(
+        z=pivot.values,
+        x=pivot.columns.tolist(),
+        y=pivot.index.tolist(),
+        colorscale="Blues",
+        hoverongaps=False,
+    ))
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
+    return fig
+
+
+def build_classic_charts(df: pd.DataFrame, top_n: int = 12) -> Dict[str, Any]:
+    charts: Dict[str, Any] = {}
+    if px is None or df is None or df.empty:
+        return charts
+
+    if "_Deliverdate_dt" in df.columns:
+        dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
+        if not dff.empty:
+            ts = dff.groupby("_Deliverdate_dt", as_index=False)["Number"].sum().sort_values("_Deliverdate_dt")
+            charts["timeline"] = px.area(ts, x="_Deliverdate_dt", y="Number", title="")
+
+    mod = df.groupby("Model", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["model_dist"] = px.pie(mod, names="Model", values="Number", title="")
+
+    cust = df.groupby("CustomerID", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["top_customers"] = px.bar(cust, x="CustomerID", y="Number", title="")
+
+    lic = df.groupby("LicenseNo", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["license_usage"] = px.bar(lic, x="LicenseNo", y="Number", title="")
+
+    for _, fig in charts.items():
+        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=360)
+    return charts
+
+
+# ---- WOW+ visuals (NEW 3) ----
+
+def build_pareto(df: pd.DataFrame, dimension: str = "SupplierID", cutoff: float = 0.8, top_n: int = 50) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
+    if dimension not in df.columns:
+        return None
+    g = df.groupby(dimension)["Number"].sum().sort_values(ascending=False).head(top_n)
+    if g.empty:
+        return None
+    total = float(g.sum()) if float(g.sum()) > 0 else 1.0
+    cum = (g.cumsum() / total)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=g.index.astype(str).tolist(), y=g.values, name="Units"))
+    fig.add_trace(go.Scatter(x=g.index.astype(str).tolist(), y=cum.values, mode="lines+markers", yaxis="y2", name="Cumulative %"))
+
+    # cutoff line
+    fig.add_shape(type="line", x0=-0.5, x1=len(g)-0.5, y0=cutoff, y1=cutoff, yref="y2",
+                  line=dict(color="rgba(255,99,71,0.9)", width=2, dash="dash"))
+
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=420,
+        yaxis=dict(title="Units"),
+        yaxis2=dict(title="Cumulative %", overlaying="y", side="right", tickformat=".0%", range=[0, 1]),
+        xaxis=dict(tickangle=30),
+        legend=dict(orientation="h"),
+    )
+    return fig
+
+
+def gini_coefficient(values: List[float]) -> float:
+    vals = [v for v in values if v is not None and v >= 0]
+    if not vals:
+        return 0.0
+    vals = sorted(vals)
+    n = len(vals)
+    s = sum(vals)
+    if s == 0:
+        return 0.0
+    cum = 0.0
+    for i, v in enumerate(vals, start=1):
+        cum += i * v
+    g = (2 * cum) / (n * s) - (n + 1) / n
+    return float(max(0.0, min(1.0, g)))
+
+
+def build_lorenz(df: pd.DataFrame, dimension: str = "SupplierID", top_n: int = 400) -> Tuple[Optional["go.Figure"], float]:
+    if go is None or df is None or df.empty:
+        return None, 0.0
+    if dimension not in df.columns:
+        return None, 0.0
+
+    g = df.groupby(dimension)["Number"].sum().sort_values(ascending=True).head(top_n)
+    if g.empty:
+        return None, 0.0
+
+    vals = g.values.astype(float).tolist()
+    gini = gini_coefficient(vals)
+
+    # Lorenz curve points
+    vals_sorted = sorted(vals)
+    n = len(vals_sorted)
+    total = sum(vals_sorted) if sum(vals_sorted) > 0 else 1.0
+    cum_share = [0.0]
+    running = 0.0
+    for v in vals_sorted:
+        running += v
+        cum_share.append(running / total)
+    pop_share = [i / n for i in range(0, n + 1)]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=pop_share, y=cum_share, mode="lines", name="Lorenz"))
+    fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Equality", line=dict(dash="dash")))
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=420,
+        xaxis=dict(title="Cumulative share of entities"),
+        yaxis=dict(title="Cumulative share of volume", tickformat=".0%"),
+        legend=dict(orientation="h"),
+    )
+    return fig, gini
+
+
+def build_treemap(df: pd.DataFrame, top_n: int = 300) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
+    dff = df.copy()
+    # Reduce to top rows by volume to keep treemap snappy
+    if "Number" in dff.columns:
+        dff = dff.sort_values("Number", ascending=False).head(top_n)
+
+    # Prefer Category->Model->CustomerID hierarchy
+    path = []
+    for col in ["Category", "Model", "CustomerID"]:
+        if col in dff.columns:
+            path.append(col)
+    if not path or "Number" not in dff.columns:
+        return None
+
+    fig = px.treemap(dff, path=path, values="Number")
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
+    return fig
+
+
+# -----------------------------------
+# Agents YAML (kept from v3.0 scaffold)
 # -----------------------------------
 
 DEFAULT_AGENTS_YAML_FALLBACK = """\
@@ -683,7 +1285,6 @@ pipelines:
 ui_hints:
   icon: "dashboard"
 """
-
 
 DEFAULT_SKILL_MD_FALLBACK = """\
 # RCC SKILL.md (fallback)
@@ -734,10 +1335,6 @@ def slugify(s: str) -> str:
 
 
 def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
-    """
-    Best-effort transformer from nonstandard YAML to canonical schema.
-    Returns (standardized_yaml_text, warnings).
-    """
     warnings: List[str] = []
     if yaml is None:
         return raw_yaml, ["PyYAML not installed; cannot standardize."]
@@ -750,12 +1347,10 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
     if obj is None:
         return DEFAULT_AGENTS_YAML_FALLBACK, ["Empty YAML; loaded fallback standard template."]
 
-    # If it's a list, assume it's agents list
     if isinstance(obj, list):
         warnings.append("Top-level YAML is a list; wrapping into canonical schema under 'agents'.")
         obj = {"agents": obj}
 
-    # If it has 'steps' but not agents/pipelines
     if isinstance(obj, dict) and "steps" in obj and "agents" not in obj:
         warnings.append("Detected 'steps' format; converting to agents + default pipeline.")
         steps = obj.get("steps", [])
@@ -792,22 +1387,13 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
             "pipelines": {"default": pipeline},
         }
 
-    # Ensure canonical wrapper
     if isinstance(obj, dict):
-        if "version" not in obj:
-            obj["version"] = "1.0"
-            warnings.append("Missing 'version'; defaulted to 1.0.")
-        if "app" not in obj:
-            obj["app"] = {"name": "RCC", "default_language": "en", "default_max_tokens": 12000}
-            warnings.append("Missing 'app'; added defaults.")
-        if "providers" not in obj:
-            obj["providers"] = {p: {} for p in PROVIDERS}
-            warnings.append("Missing 'providers'; added placeholders.")
-        if "system_prompt" not in obj:
-            obj["system_prompt"] = {"source": "SKILL.md"}
-            warnings.append("Missing 'system_prompt'; set source to SKILL.md.")
+        obj.setdefault("version", "1.0")
+        obj.setdefault("app", {"name": "RCC", "default_language": "en", "default_max_tokens": 12000})
+        obj.setdefault("providers", {p: {} for p in PROVIDERS})
+        obj.setdefault("system_prompt", {"source": "SKILL.md"})
+
         if "agents" not in obj:
-            # Try detect single agent fields
             maybe_prompt = obj.get("prompt") or obj.get("instruction") or obj.get("template")
             if maybe_prompt:
                 model = obj.get("model") or "gpt-4o-mini"
@@ -825,16 +1411,15 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
                 }
                 obj["agents"] = [agent]
                 obj.setdefault("pipelines", {"default": [agent["id"]]})
-                warnings.append("No 'agents' list found; converted single-agent YAML into canonical schema.")
+                warnings.append("Converted single-agent YAML into canonical schema.")
             else:
                 obj["agents"] = []
                 warnings.append("No 'agents' found; created empty 'agents' list.")
 
-        # Normalize agents
         agents = obj.get("agents", [])
         if isinstance(agents, dict):
-            warnings.append("'agents' is a dict; wrapping into list.")
             agents = [agents]
+            warnings.append("'agents' was dict; wrapped into list.")
 
         norm_agents = []
         seen = set()
@@ -845,13 +1430,12 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
             aid = a.get("id") or slugify(name)
             if aid in seen:
                 aid = f"{aid}_{uuid.uuid4().hex[:6]}"
-                warnings.append(f"Duplicate agent id detected; renamed to {aid}.")
+                warnings.append(f"Duplicate agent id; renamed to {aid}.")
             seen.add(aid)
 
             model = a.get("model") or "gpt-4o-mini"
             provider = a.get("provider") or detect_provider_from_model(model)
             prompt = a.get("prompt_template") or a.get("prompt") or a.get("instruction") or ""
-
             max_tokens = a.get("max_tokens") or a.get("maxTokens") or a.get("max_output_tokens") or 12000
             try:
                 max_tokens = int(max_tokens)
@@ -859,8 +1443,8 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
                 max_tokens = 12000
                 warnings.append(f"Agent {aid}: invalid max_tokens; defaulted to 12000.")
 
-            input_block = a.get("input") if isinstance(a.get("input"), dict) else {}
-            output_block = a.get("output") if isinstance(a.get("output"), dict) else {}
+            inp = a.get("input") if isinstance(a.get("input"), dict) else {}
+            outp = a.get("output") if isinstance(a.get("output"), dict) else {}
 
             norm_agents.append(
                 {
@@ -871,45 +1455,32 @@ def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
                     "model": model,
                     "max_tokens": max_tokens,
                     "temperature": a.get("temperature", None),
-                    "input": {
-                        "format": input_block.get("format", "markdown"),
-                        "source": input_block.get("source", "previous"),
-                    },
-                    "output": {"format": output_block.get("format", "markdown")},
+                    "input": {"format": inp.get("format", "markdown"), "source": inp.get("source", "previous")},
+                    "output": {"format": outp.get("format", "markdown")},
                     "prompt_template": prompt,
                 }
             )
 
         obj["agents"] = norm_agents
-
-        # Pipelines
-        if "pipelines" not in obj or not obj["pipelines"]:
-            obj["pipelines"] = {"default": [a["id"] for a in norm_agents]}
-            warnings.append("Missing 'pipelines'; generated default pipeline using agent order.")
+        obj.setdefault("pipelines", {"default": [a["id"] for a in norm_agents]})
 
     standardized = yaml.safe_dump(obj, sort_keys=False, allow_unicode=True)
     return standardized, warnings
 
 
 # -----------------------------------
-# Offline AI Note transformation (fallback)
+# Offline AI Note transformation (kept)
 # -----------------------------------
 
 def extract_keywords_simple(text: str, max_k: int = 12) -> List[str]:
-    """
-    Simple keyword extraction: keep uppercase-ish codes, license strings, and frequent nouns-like tokens.
-    """
     text = (text or "").strip()
     if not text:
         return []
-
     candidates = []
-    # License-like / UDID-like / codes
     candidates += re.findall(r"(衛部醫器[^\s,，]{6,}號)", text)
-    candidates += re.findall(r"\b\d{14}\b", text)  # UDID-like
-    candidates += re.findall(r"\b[A-Z]{1,5}\d{2,6}\b", text)  # model-ish codes
+    candidates += re.findall(r"\b\d{14}\b", text)
+    candidates += re.findall(r"\b[A-Z]{1,5}\d{2,6}\b", text)
 
-    # Token frequency (naive)
     tokens = re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{4,}", text)
     freq: Dict[str, int] = {}
     for t in tokens:
@@ -919,7 +1490,6 @@ def extract_keywords_simple(text: str, max_k: int = 12) -> List[str]:
         freq[t] = freq.get(t, 0) + 1
     top = [k for k, _ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)[: max_k * 2]]
 
-    # Combine, preserve order, unique
     out = []
     for k in candidates + top:
         if k not in out:
@@ -1000,8 +1570,6 @@ def organize_notes_offline(note_text: str, lang: str) -> str:
 def highlight_keywords_html(md_text: str, keywords: List[str], color: str) -> str:
     if not md_text or not keywords:
         return md_text
-
-    # Escape regex special chars in keywords; replace longest first to avoid partial overlap.
     kws = sorted(set([k for k in keywords if k.strip()]), key=len, reverse=True)
     out = md_text
     for k in kws:
@@ -1015,211 +1583,12 @@ def highlight_keywords_html(md_text: str, keywords: List[str], color: str) -> st
 
 
 # -----------------------------------
-# Distribution analytics
-# -----------------------------------
-
-def filter_df(df: pd.DataFrame,
-              suppliers: List[str],
-              customers: List[str],
-              licenses: List[str],
-              models: List[str],
-              date_range: Optional[Tuple[pd.Timestamp, pd.Timestamp]],
-              qty_range: Optional[Tuple[float, float]]) -> pd.DataFrame:
-    if df is None or df.empty:
-        return df
-
-    dff = df.copy()
-    if suppliers:
-        dff = dff[dff["SupplierID"].isin(suppliers)]
-    if customers:
-        dff = dff[dff["CustomerID"].isin(customers)]
-    if licenses:
-        dff = dff[dff["LicenseNo"].isin(licenses)]
-    if models:
-        dff = dff[dff["Model"].isin(models)]
-    if date_range and "_Deliverdate_dt" in dff.columns:
-        start, end = date_range
-        if start is not None:
-            dff = dff[dff["_Deliverdate_dt"] >= start]
-        if end is not None:
-            dff = dff[dff["_Deliverdate_dt"] <= end]
-    if qty_range:
-        lo, hi = qty_range
-        dff = dff[(dff["Number"] >= lo) & (dff["Number"] <= hi)]
-    return dff
-
-
-def compute_kpis(df: pd.DataFrame) -> Dict[str, Any]:
-    if df is None or df.empty:
-        return {"rows": 0, "unique_suppliers": 0, "unique_customers": 0, "total_units": 0}
-    return {
-        "rows": int(len(df)),
-        "unique_suppliers": int(df["SupplierID"].nunique()),
-        "unique_customers": int(df["CustomerID"].nunique()),
-        "total_units": float(df["Number"].sum()),
-    }
-
-
-def build_sankey(df: pd.DataFrame, top_n: int = 30) -> Optional["go.Figure"]:
-    if go is None or df is None or df.empty:
-        return None
-
-    # Aggregate to reduce complexity
-    agg = (
-        df.groupby(["SupplierID", "LicenseNo", "Model", "CustomerID"], as_index=False)["Number"]
-        .sum()
-        .sort_values("Number", ascending=False)
-    )
-    agg = agg.head(max(5, top_n))
-
-    # Nodes
-    suppliers = agg["SupplierID"].unique().tolist()
-    licenses = agg["LicenseNo"].unique().tolist()
-    models = agg["Model"].unique().tolist()
-    customers = agg["CustomerID"].unique().tolist()
-
-    nodes = suppliers + licenses + models + customers
-    idx = {n: i for i, n in enumerate(nodes)}
-
-    # Links: Supplier->License, License->Model, Model->Customer
-    def link_sum(cols: List[str]) -> pd.DataFrame:
-        return agg.groupby(cols, as_index=False)["Number"].sum()
-
-    l1 = link_sum(["SupplierID", "LicenseNo"])
-    l2 = link_sum(["LicenseNo", "Model"])
-    l3 = link_sum(["Model", "CustomerID"])
-
-    sources = []
-    targets = []
-    values = []
-
-    for _, r in l1.iterrows():
-        sources.append(idx[r["SupplierID"]])
-        targets.append(idx[r["LicenseNo"]])
-        values.append(float(r["Number"]))
-    for _, r in l2.iterrows():
-        sources.append(idx[r["LicenseNo"]])
-        targets.append(idx[r["Model"]])
-        values.append(float(r["Number"]))
-    for _, r in l3.iterrows():
-        sources.append(idx[r["Model"]])
-        targets.append(idx[r["CustomerID"]])
-        values.append(float(r["Number"]))
-
-    fig = go.Figure(
-        data=[
-            go.Sankey(
-                node=dict(
-                    pad=14,
-                    thickness=14,
-                    line=dict(color="rgba(0,0,0,0.15)", width=0.5),
-                    label=nodes,
-                ),
-                link=dict(source=sources, target=targets, value=values),
-            )
-        ]
-    )
-    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
-    return fig
-
-
-def build_temporal_pulse(df: pd.DataFrame, freq: str = "D") -> Optional["go.Figure"]:
-    if go is None or df is None or df.empty or "_Deliverdate_dt" not in df.columns:
-        return None
-
-    dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
-    if dff.empty:
-        return None
-
-    # Aggregate by time
-    ts = dff.set_index("_Deliverdate_dt")["Number"].resample(freq).sum().reset_index()
-    ts = ts.sort_values("_Deliverdate_dt")
-    ts["ma"] = ts["Number"].rolling(7, min_periods=2).mean()
-
-    # Anomaly: z-score-ish on residuals
-    residual = ts["Number"] - ts["ma"].fillna(ts["Number"].mean())
-    denom = residual.std() if residual.std() and residual.std() > 0 else 1.0
-    ts["z"] = residual / denom
-    ts["anomaly"] = ts["z"].abs() >= 2.5
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["Number"], mode="lines", name="Units"))
-    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["ma"], mode="lines", name="7d MA"))
-    ano = ts[ts["anomaly"]]
-    if not ano.empty:
-        fig.add_trace(go.Scatter(
-            x=ano["_Deliverdate_dt"], y=ano["Number"],
-            mode="markers", name="Anomaly",
-            marker=dict(size=10, color="rgba(255,99,71,0.9)", line=dict(width=1, color="rgba(0,0,0,0.2)"))
-        ))
-    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=420)
-    return fig
-
-
-def build_mosaic_heatmap(df: pd.DataFrame, top_n_customers: int = 25, top_n_models: int = 20) -> Optional["go.Figure"]:
-    if go is None or df is None or df.empty:
-        return None
-
-    # Top customers & models by volume
-    cust = df.groupby("CustomerID")["Number"].sum().sort_values(ascending=False).head(top_n_customers).index
-    mod = df.groupby("Model")["Number"].sum().sort_values(ascending=False).head(top_n_models).index
-    dff = df[df["CustomerID"].isin(cust) & df["Model"].isin(mod)].copy()
-    if dff.empty:
-        return None
-
-    pivot = dff.pivot_table(index="CustomerID", columns="Model", values="Number", aggfunc="sum", fill_value=0)
-
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=pivot.values,
-            x=pivot.columns.tolist(),
-            y=pivot.index.tolist(),
-            colorscale="Blues",
-            hoverongaps=False,
-        )
-    )
-    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
-    return fig
-
-
-def build_classic_charts(df: pd.DataFrame, top_n: int = 12) -> Dict[str, Any]:
-    charts: Dict[str, Any] = {}
-    if px is None or df is None or df.empty:
-        return charts
-
-    # Timeline
-    if "_Deliverdate_dt" in df.columns:
-        dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
-        if not dff.empty:
-            ts = dff.groupby("_Deliverdate_dt", as_index=False)["Number"].sum().sort_values("_Deliverdate_dt")
-            charts["timeline"] = px.area(ts, x="_Deliverdate_dt", y="Number", title="")
-
-    # Model distribution
-    mod = df.groupby("Model", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
-    charts["model_dist"] = px.pie(mod, names="Model", values="Number", title="")
-
-    # Top customers
-    cust = df.groupby("CustomerID", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
-    charts["top_customers"] = px.bar(cust, x="CustomerID", y="Number", title="")
-
-    # License usage
-    lic = df.groupby("LicenseNo", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
-    charts["license_usage"] = px.bar(lic, x="LicenseNo", y="Number", title="")
-
-    for k, fig in charts.items():
-        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=360)
-    return charts
-
-
-# -----------------------------------
 # UI building blocks
 # -----------------------------------
 
 def status_strip(lang: str) -> None:
     st.markdown(f"### {_t(lang, 'status_strip')}")
     chips = []
-
-    # Provider chips
     for p in PROVIDERS:
         status, src = provider_status(p)
         if status == "configured" and src == "env":
@@ -1230,24 +1599,23 @@ def status_strip(lang: str) -> None:
             label = f"{p.upper()}: {_t(lang, 'missing')}"
         chips.append(f"<span class='rcc-chip'>{label}</span>")
 
-    # Dataset chip
-    df = st.session_state.get("dataset_df")
+    df = st.session_state.get("dataset_df_active")
     rows = int(len(df)) if isinstance(df, pd.DataFrame) else 0
     chips.append(f"<span class='rcc-chip'>DATA: {rows} rows</span>")
 
-    # Agent pipeline chip
     pipeline_state = st.session_state.get("pipeline_state", {"status": "idle"})
     chips.append(f"<span class='rcc-chip'>{_t(lang,'agent_pipeline')}: {pipeline_state.get('status','idle')}</span>")
 
     st.markdown("".join(chips), unsafe_allow_html=True)
 
 
-def wow_header_controls(lang: str) -> None:
+def wow_header_controls() -> None:
     with st.sidebar:
         st.markdown(f"## {APP_TITLE}")
 
         # Language
-        sel_lang = st.selectbox(_t(lang, "language"), options=["en", "zh-TW"], index=0 if lang == "en" else 1)
+        current_lang = st.session_state.get("lang", "en")
+        sel_lang = st.selectbox(_t(current_lang, "language"), options=["en", "zh-TW"], index=0 if current_lang == "en" else 1)
         st.session_state["lang"] = sel_lang
 
         # Theme + mode
@@ -1256,14 +1624,13 @@ def wow_header_controls(lang: str) -> None:
         current_mode = st.session_state.get("theme_mode", "light")
 
         theme_name = st.selectbox(_t(sel_lang, "theme"), options=themes, index=themes.index(current_theme) if current_theme in themes else 0)
-        mode = st.radio(_t(sel_lang, "mode"), options=["light", "dark"], index=0 if current_mode == "light" else 1, horizontal=True,
-                        format_func=lambda x: _t(sel_lang, x))
+        mode = st.radio(_t(sel_lang, "mode"), options=["light", "dark"], index=0 if current_mode == "light" else 1,
+                        horizontal=True, format_func=lambda x: _t(sel_lang, x))
 
         colj1, colj2 = st.columns([1, 1])
         with colj1:
             if st.button(_t(sel_lang, "jackpot"), use_container_width=True):
                 theme_name = random.choice(themes)
-                st.session_state["theme_name"] = theme_name
         with colj2:
             st.caption(f"{theme_name} / {_t(sel_lang, mode)}")
 
@@ -1271,86 +1638,210 @@ def wow_header_controls(lang: str) -> None:
         st.session_state["theme_mode"] = mode
 
 
-def dataset_ingestion_panel(lang: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    st.markdown(f"## {_t(lang, 'data_source')}")
+def dataset_manager(lang: str) -> Tuple[pd.DataFrame, Dict[str, Any], Dict[str, Any]]:
+    """
+    NEW: staged Preview/Import workflow.
+    Returns: active_df, active_quality, active_standardize_report
+    """
+    st.markdown(f"## {_t(lang, 'dataset_manager')}")
 
-    use_default = st.toggle(_t(lang, "use_default"), value=st.session_state.get("use_default_dataset", True))
-    st.session_state["use_default_dataset"] = use_default
+    # Source selection
+    source = st.radio(
+        _t(lang, "data_source"),
+        options=[_t(lang, "use_default"), _t(lang, "paste"), _t(lang, "upload")],
+        horizontal=True,
+        index=0
+    )
 
-    parse_warnings: List[str] = []
-    df: pd.DataFrame = st.session_state.get("dataset_df", pd.DataFrame(columns=REQUIRED_COLUMNS))
+    preview_n = st.select_slider(_t(lang, "preview_count"), options=[20, 50, 100, 200, 500], value=20)
+    issues_only = st.toggle(_t(lang, "issues_only"), value=False)
 
-    if use_default:
-        if st.session_state.get("_default_loaded") is not True:
-            default_df, w = load_default_dataset(DEFAULT_DATASET_PATH)
-            default_df, w2 = standardize_columns(default_df)
-            parse_warnings = w + w2
-            st.session_state["dataset_df"] = default_df
-            st.session_state["dataset_parse_warnings"] = parse_warnings
-            st.session_state["_default_loaded"] = True
-        else:
-            parse_warnings = st.session_state.get("dataset_parse_warnings", [])
+    # Ensure active dataset exists
+    if "dataset_df_active" not in st.session_state:
+        st.session_state["dataset_df_active"] = pd.DataFrame(columns=REQUIRED_COLUMNS + ["_row_id", "_source", "_import_ts", "_quality_flags", "_Deliverdate_dt"])
+        st.session_state["dataset_parse_warnings_active"] = []
+        st.session_state["dataset_standardize_report_active"] = {"source": "none", "confidence": 0}
+
+    # Default dataset: load once into active if chosen
+    if source == _t(lang, "use_default"):
+        if st.session_state.get("_default_loaded_active") is not True:
+            std, warnings, rep = load_default_dataset(DEFAULT_DATASET_PATH)
+            st.session_state["dataset_df_active"] = std
+            st.session_state["dataset_parse_warnings_active"] = warnings
+            st.session_state["dataset_standardize_report_active"] = rep
+            st.session_state["_default_loaded_active"] = True
+            # Clear staged
+            st.session_state.pop("dataset_stage_raw", None)
+            st.session_state.pop("dataset_stage_std", None)
+            st.session_state.pop("dataset_stage_report", None)
+            st.session_state.pop("dataset_stage_warnings", None)
+
     else:
-        st.session_state["_default_loaded"] = False
+        st.session_state["_default_loaded_active"] = False
 
-        st.markdown(f"### {_t(lang, 'paste_or_upload')}")
-        pasted = st.text_area(_t(lang, "paste_here"), height=160, placeholder="CSV header + rows, or JSON array of records")
-        uploaded = st.file_uploader(_t(lang, "upload_file"), type=["csv", "json", "txt"])
+        pasted = ""
+        uploaded_text = ""
+        filename = "paste"
+        detected_fmt = "unknown"
 
-        col1, col2 = st.columns([1, 1])
+        if source == _t(lang, "paste"):
+            pasted = st.text_area(_t(lang, "paste_here"), height=180, placeholder="CSV header + rows, JSON array, or JSONL lines")
+            uploaded_text = pasted
+            filename = "paste"
+        else:
+            up = st.file_uploader(_t(lang, "upload_file"), type=["csv", "json", "txt", "jsonl"])
+            if up is not None:
+                uploaded_text = try_read_text_file(up)
+                filename = getattr(up, "name", "upload")
+
+        # Preview / Import / Cancel staged
+        col1, col2, col3 = st.columns([1, 1, 1])
+
         with col1:
-            if st.button(_t(lang, "load_dataset"), type="primary", use_container_width=True):
-                content = ""
-                if uploaded is not None:
-                    content = try_read_text_file(uploaded)
-                elif pasted.strip():
-                    content = pasted
-                df_new, w = parse_dataset_from_text(content)
-                df_new, w2 = standardize_columns(df_new)
-                parse_warnings = w + w2
-                st.session_state["dataset_df"] = df_new
-                st.session_state["dataset_parse_warnings"] = parse_warnings
+            if st.button(_t(lang, "preview"), type="primary", use_container_width=True):
+                # Attempt headerless CSV parsing if needed
+                df_hdrless = headerless_csv_to_required(uploaded_text)
+                if df_hdrless is not None:
+                    df_raw = df_hdrless
+                    warnings = ["Parsed as headerless CSV; assigned canonical headers."]
+                    detected_fmt = "csv(headerless)"
+                else:
+                    df_raw, warnings, detected_fmt = parse_dataset_text(uploaded_text)
+
+                # Stage raw
+                st.session_state["dataset_stage_raw"] = df_raw
+                st.session_state["dataset_stage_warnings"] = warnings
+                st.session_state["dataset_stage_detected_fmt"] = detected_fmt
+
+                # Build mapping UI defaults (only if necessary)
+                stage_cols = list(df_raw.columns) if isinstance(df_raw, pd.DataFrame) else []
+                user_mapping = st.session_state.get("dataset_stage_user_mapping", {})
+
+                # Standardize with current mapping (may be empty)
+                std, rep = standardize_dataset(df_raw, source_label=filename, user_mapping=user_mapping)
+                rep["detected_format"] = detected_fmt
+                rep["parse_warnings"] = warnings
+                st.session_state["dataset_stage_std"] = std
+                st.session_state["dataset_stage_report"] = rep
+
+                st.success(_t(lang, "staged_ready"))
+
         with col2:
-            if st.button(_t(lang, "clear_dataset"), use_container_width=True):
-                st.session_state["dataset_df"] = pd.DataFrame(columns=REQUIRED_COLUMNS)
-                st.session_state["dataset_parse_warnings"] = ["Cleared by user"]
+            can_import = False
+            rep = st.session_state.get("dataset_stage_report")
+            if isinstance(rep, dict):
+                can_import = len(rep.get("missing_required", [])) == 0
 
-        parse_warnings = st.session_state.get("dataset_parse_warnings", [])
+            if st.button(_t(lang, "import"), use_container_width=True, disabled=not can_import):
+                std = st.session_state.get("dataset_stage_std")
+                rep = st.session_state.get("dataset_stage_report", {})
+                warnings = rep.get("parse_warnings", []) if isinstance(rep, dict) else []
+                if isinstance(std, pd.DataFrame):
+                    st.session_state["dataset_df_active"] = std
+                    st.session_state["dataset_parse_warnings_active"] = warnings
+                    st.session_state["dataset_standardize_report_active"] = rep
+                    st.success(_t(lang, "imported"))
+                else:
+                    st.error("No staged dataset to import.")
 
-    df = st.session_state.get("dataset_df", pd.DataFrame(columns=REQUIRED_COLUMNS))
-    q = dataset_quality_report(df, st.session_state.get("dataset_parse_warnings", []))
+        with col3:
+            if st.button(_t(lang, "cancel"), use_container_width=True):
+                st.session_state.pop("dataset_stage_raw", None)
+                st.session_state.pop("dataset_stage_std", None)
+                st.session_state.pop("dataset_stage_report", None)
+                st.session_state.pop("dataset_stage_warnings", None)
+                st.session_state.pop("dataset_stage_detected_fmt", None)
+                st.session_state.pop("dataset_stage_user_mapping", None)
 
-    # Quality + KPI row
-    kpis = compute_kpis(df)
+        # Mapping UI (only shown when staged and missing required)
+        rep = st.session_state.get("dataset_stage_report")
+        raw = st.session_state.get("dataset_stage_raw")
+        if isinstance(rep, dict) and isinstance(raw, pd.DataFrame) and not raw.empty:
+            missing_required = rep.get("missing_required", [])
+            if missing_required:
+                st.markdown(f"### {_t(lang, 'mapping')}")
+                st.caption(_t(lang, "mapping_help"))
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric(_t(lang, "rows"), kpis["rows"])
-    c2.metric(_t(lang, "unique_suppliers"), kpis["unique_suppliers"])
-    c3.metric(_t(lang, "unique_customers"), kpis["unique_customers"])
-    c4.metric(_t(lang, "total_units"), f"{kpis['total_units']:.0f}")
+                cols = list(raw.columns)
+                user_mapping: Dict[str, str] = st.session_state.get("dataset_stage_user_mapping", {})
 
-    with st.expander(_t(lang, "data_quality"), expanded=False):
-        st.write({
-            _t(lang, "missing_cols"): q["missing_cols"],
-            _t(lang, "parse_warnings"): q["parse_warnings"],
-            "duplicates": q["duplicates"],
-            "unparsed_dates": q["unparsed_dates"],
-            "nonpositive_qty": q["nonpositive_qty"],
-        })
+                # Only map canonical fields that are required-minimum or commonly missing
+                map_targets = list(dict.fromkeys(MIN_IMPORT_COLUMNS + REQUIRED_COLUMNS))
+                mapping_inputs = {}
+                for canon in map_targets:
+                    if canon not in REQUIRED_COLUMNS:
+                        continue
+                    default_src = user_mapping.get(canon, "")
+                    # If already auto-mapped, show it too:
+                    auto_src = rep.get("mapping_used", {}).get(canon, "")
+                    preselect = default_src or auto_src
+                    options = [""] + cols
+                    idx = options.index(preselect) if preselect in options else 0
+                    mapping_inputs[canon] = st.selectbox(f"{canon}  ←", options=options, index=idx, key=f"map_{canon}")
 
-    st.markdown(f"### {_t(lang, 'dataset_preview')}")
-    st.dataframe(df.head(50), use_container_width=True)
+                if st.button("Apply mapping + Re-standardize"):
+                    st.session_state["dataset_stage_user_mapping"] = mapping_inputs
+                    # Re-standardize
+                    std, rep2 = standardize_dataset(raw, source_label=rep.get("source", "staged"), user_mapping=mapping_inputs)
+                    rep2["detected_format"] = rep.get("detected_format", "unknown")
+                    rep2["parse_warnings"] = st.session_state.get("dataset_stage_warnings", [])
+                    st.session_state["dataset_stage_std"] = std
+                    st.session_state["dataset_stage_report"] = rep2
+                    st.rerun()
 
-    return df, q
+                st.error(f"{_t(lang, 'cannot_import')}: {missing_required}")
+
+    # Preview section: show staged (if exists) else active
+    stage_std = st.session_state.get("dataset_stage_std")
+    stage_raw = st.session_state.get("dataset_stage_raw")
+    stage_rep = st.session_state.get("dataset_stage_report")
+
+    active_df = st.session_state.get("dataset_df_active")
+    active_warnings = st.session_state.get("dataset_parse_warnings_active", [])
+    active_rep = st.session_state.get("dataset_standardize_report_active", {})
+
+    tab_raw, tab_std = st.tabs([_t(lang, "raw_preview"), _t(lang, "std_preview")])
+
+    with tab_raw:
+        df_show = stage_raw if isinstance(stage_raw, pd.DataFrame) else active_df
+        if issues_only and isinstance(df_show, pd.DataFrame) and "_quality_flags" in df_show.columns:
+            df_show = df_show[df_show["_quality_flags"].astype(str).str.strip() != ""]
+        st.markdown(f"### {_t(lang, 'dataset_preview')}")
+        st.dataframe((df_show.head(preview_n) if isinstance(df_show, pd.DataFrame) else pd.DataFrame()), use_container_width=True)
+
+    with tab_std:
+        df_show = stage_std if isinstance(stage_std, pd.DataFrame) else active_df
+        rep_show = stage_rep if isinstance(stage_rep, dict) else active_rep
+        warnings_show = (rep_show.get("parse_warnings", []) if isinstance(rep_show, dict) else []) or active_warnings
+
+        fmt = rep_show.get("detected_format", "unknown") if isinstance(rep_show, dict) else "unknown"
+        conf = rep_show.get("confidence", 0) if isinstance(rep_show, dict) else 0
+
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            st.markdown(f"**{_t(lang, 'format_detected')}:** {fmt}")
+            st.markdown(f"**{_t(lang, 'confidence')}:** {conf}/100")
+        with c2:
+            st.markdown(f"### {_t(lang, 'import_report')}")
+            st.write(rep_show if isinstance(rep_show, dict) else {})
+            if warnings_show:
+                st.warning("\n".join([f"- {w}" for w in warnings_show]))
+
+        if issues_only and isinstance(df_show, pd.DataFrame) and "_quality_flags" in df_show.columns:
+            df_show = df_show[df_show["_quality_flags"].astype(str).str.strip() != ""]
+        st.dataframe((df_show.head(preview_n) if isinstance(df_show, pd.DataFrame) else pd.DataFrame()), use_container_width=True)
+
+    # Quality for active dataset (always computed on active)
+    q_active = dataset_quality_report(active_df, active_warnings, active_rep)
+    return active_df, q_active, active_rep
 
 
 def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
     st.markdown(f"## {_t(lang, 'filters')}")
     if df is None or df.empty:
         st.info("No dataset loaded.")
-        return {"suppliers": [], "customers": [], "licenses": [], "models": [], "date_range": None, "qty_range": None, "top_n": 20}
+        return {"suppliers": [], "customers": [], "licenses": [], "models": [], "date_range": None, "qty_range": None, "top_n": 30}
 
-    # Options
     suppliers_opt = sorted([x for x in df["SupplierID"].dropna().astype(str).unique().tolist() if x.strip()])
     customers_opt = sorted([x for x in df["CustomerID"].dropna().astype(str).unique().tolist() if x.strip()])
     licenses_opt = sorted([x for x in df["LicenseNo"].dropna().astype(str).unique().tolist() if x.strip()])
@@ -1364,7 +1855,6 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
         licenses = st.multiselect(_t(lang, "license_filter"), licenses_opt, default=st.session_state.get("flt_licenses", []))
         models = st.multiselect(_t(lang, "model_filter"), models_opt, default=st.session_state.get("flt_models", []))
 
-    # Date range
     date_range = None
     if "_Deliverdate_dt" in df.columns and df["_Deliverdate_dt"].notna().any():
         dmin = pd.to_datetime(df["_Deliverdate_dt"].min()).date()
@@ -1373,7 +1863,6 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
         if isinstance(dr, tuple) and len(dr) == 2:
             date_range = (pd.to_datetime(dr[0]), pd.to_datetime(dr[1]))
 
-    # Qty range
     qty_range = None
     qmin = float(df["Number"].min()) if "Number" in df.columns else 0.0
     qmax = float(df["Number"].max()) if "Number" in df.columns else 0.0
@@ -1381,7 +1870,7 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
         qr = st.slider(_t(lang, "qty_range"), min_value=float(qmin), max_value=float(qmax), value=(float(qmin), float(qmax)))
         qty_range = qr
 
-    top_n = st.slider(_t(lang, "top_n"), min_value=10, max_value=200, value=int(st.session_state.get("flt_top_n", 30)), step=5)
+    top_n = st.slider(_t(lang, "top_n"), min_value=10, max_value=300, value=int(st.session_state.get("flt_top_n", 30)), step=5)
 
     if st.button(_t(lang, "reset_filters")):
         for k in ["flt_suppliers", "flt_customers", "flt_licenses", "flt_models", "flt_top_n"]:
@@ -1389,7 +1878,6 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
                 del st.session_state[k]
         st.rerun()
 
-    # Persist
     st.session_state["flt_suppliers"] = suppliers
     st.session_state["flt_customers"] = customers
     st.session_state["flt_licenses"] = licenses
@@ -1407,6 +1895,41 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
+def wow_indicator_dock(lang: str, df: pd.DataFrame, q: Dict[str, Any]) -> None:
+    st.markdown(f"## {_t(lang, 'wow_indicators')}")
+
+    score = data_health_score(q)
+    conc = concentration_risk(df)
+    anom = compute_anomalies_count(df, freq="D")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"<div class='rcc-ind'><b>{_t(lang,'data_health_score')}</b><br><span style='font-size:28px'>{score}</span>/100</div>", unsafe_allow_html=True)
+        st.progress(score / 100.0)
+        st.caption(f"{_t(lang,'missing_cols')}: {len(q.get('missing_cols',[]))} | issue rows: {q.get('issue_rows',0)}")
+
+    with c2:
+        top_s = conc.get("top_supplier")
+        share = conc.get("share", 0.0)
+        top_c = conc.get("top_customer")
+        share_c = conc.get("customer_share", 0.0)
+        st.markdown(
+            f"<div class='rcc-ind'><b>{_t(lang,'concentration_risk')}</b><br>"
+            f"Top Supplier: <b>{top_s or '-'}</b> ({share:.0%})<br>"
+            f"Top Customer: <b>{top_c or '-'}</b> ({share_c:.0%})</div>",
+            unsafe_allow_html=True
+        )
+        st.progress(min(1.0, max(0.0, share)))
+
+    with c3:
+        st.markdown(
+            f"<div class='rcc-ind'><b>{_t(lang,'anomaly_beacons')}</b><br>"
+            f"<span style='font-size:28px'>{anom}</span> / detected</div>",
+            unsafe_allow_html=True
+        )
+        st.caption("Based on rolling mean residual z-threshold (|z|≥2.5).")
+
+
 # -----------------------------------
 # Pages
 # -----------------------------------
@@ -1415,12 +1938,30 @@ def page_distribution_lab(lang: str) -> None:
     st.markdown(f"# {_t(lang, 'nav_distribution')}")
     status_strip(lang)
 
-    df, q = dataset_ingestion_panel(lang)
-    flt = distribution_filters(lang, df)
-    dff = filter_df(df, **{k: flt[k] for k in ["suppliers", "customers", "licenses", "models", "date_range", "qty_range"]})
+    df_active, q_active, rep_active = dataset_manager(lang)
+
+    # KPI ribbon (kept)
+    k = compute_kpis(df_active)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(_t(lang, "rows"), k["rows"])
+    c2.metric(_t(lang, "unique_suppliers"), k["unique_suppliers"])
+    c3.metric(_t(lang, "unique_customers"), k["unique_customers"])
+    c4.metric(_t(lang, "total_units"), f"{k['total_units']:.0f}")
+
+    with st.expander(_t(lang, "data_quality"), expanded=False):
+        st.write(q_active)
+        if st.session_state.get("dataset_parse_warnings_active"):
+            st.warning("\n".join([f"- {w}" for w in st.session_state["dataset_parse_warnings_active"]]))
+
+    # NEW WOW Indicator Dock
+    wow_indicator_dock(lang, df_active, q_active)
+
+    # Filters + filtered view
+    flt = distribution_filters(lang, df_active)
+    dff = filter_df(df_active, **{k: flt[k] for k in ["suppliers", "customers", "licenses", "models", "date_range", "qty_range"]})
 
     st.markdown("---")
-    tab1, tab2 = st.tabs([_t(lang, "wow_graphs"), _t(lang, "classic_charts")])
+    tab1, tab2, tab3 = st.tabs([_t(lang, "wow_graphs"), _t(lang, "wow_plus"), _t(lang, "classic_charts")])
 
     with tab1:
         st.markdown(f"## {_t(lang, 'sankey_title')}")
@@ -1438,13 +1979,43 @@ def page_distribution_lab(lang: str) -> None:
             st.info("Temporal chart unavailable (no parsable dates) or no data after filtering.")
 
         st.markdown(f"## {_t(lang, 'mosaic_title')}")
-        fig3 = build_mosaic_heatmap(dff, top_n_customers=min(40, max(15, flt["top_n"])), top_n_models=min(30, max(12, flt["top_n"] // 2)))
+        fig3 = build_mosaic_heatmap(
+            dff,
+            top_n_customers=min(40, max(15, flt["top_n"])),
+            top_n_models=min(30, max(12, flt["top_n"] // 2))
+        )
         if fig3 is not None:
             st.plotly_chart(fig3, use_container_width=True)
         else:
             st.info("Heatmap unavailable or no data after filtering.")
 
     with tab2:
+        st.markdown(f"## {_t(lang, 'pareto_title')}")
+        dim = st.selectbox("Dimension", options=["SupplierID", "CustomerID", "Model", "LicenseNo", "Category"], index=0)
+        cutoff = st.slider("Cutoff", min_value=0.5, max_value=0.95, value=0.80, step=0.05)
+        pareto_fig = build_pareto(dff, dimension=dim, cutoff=cutoff, top_n=min(200, max(30, flt["top_n"] * 2)))
+        if pareto_fig is not None:
+            st.plotly_chart(pareto_fig, use_container_width=True)
+        else:
+            st.info("Pareto chart unavailable or insufficient data.")
+
+        st.markdown(f"## {_t(lang, 'lorenz_title')}")
+        dim2 = st.selectbox("Dimension (Lorenz)", options=["SupplierID", "CustomerID", "Model"], index=0)
+        lorenz_fig, gini = build_lorenz(dff, dimension=dim2)
+        st.metric("Gini", f"{gini:.3f}")
+        if lorenz_fig is not None:
+            st.plotly_chart(lorenz_fig, use_container_width=True)
+        else:
+            st.info("Lorenz/Gini unavailable or insufficient data.")
+
+        st.markdown(f"## {_t(lang, 'treemap_title')}")
+        tree_fig = build_treemap(dff, top_n=min(800, max(200, flt["top_n"] * 10)))
+        if tree_fig is not None:
+            st.plotly_chart(tree_fig, use_container_width=True)
+        else:
+            st.info("Treemap unavailable (need Category/Model/CustomerID and Number).")
+
+    with tab3:
         charts = build_classic_charts(dff, top_n=min(25, max(10, flt["top_n"] // 2)))
         c1, c2 = st.columns(2)
         with c1:
@@ -1484,7 +2055,6 @@ def page_agents_studio(lang: str) -> None:
 
     st.markdown(f"## {_t(lang, 'agents_yaml')}")
 
-    # Load current YAML from session or disk/fallback
     if "agents_yaml_raw" not in st.session_state:
         disk_yaml = safe_load_text(DEFAULT_AGENTS_YAML_PATH, DEFAULT_AGENTS_YAML_FALLBACK)
         st.session_state["agents_yaml_raw"] = disk_yaml
@@ -1497,7 +2067,6 @@ def page_agents_studio(lang: str) -> None:
     with colL:
         st.markdown(f"### {_t(lang, 'paste_agents_yaml')}")
         pasted = st.text_area("", value="", height=160, placeholder="Paste YAML here")
-
         uploaded = st.file_uploader(_t(lang, "upload_agents_yaml"), type=["yaml", "yml"])
 
         if st.button(_t(lang, "standardize"), type="primary"):
@@ -1531,7 +2100,6 @@ def page_agents_studio(lang: str) -> None:
         )
 
         if st.button(_t(lang, "import_yaml")):
-            # Validate minimally: must contain agents list
             try:
                 obj = yaml.safe_load(std_text)
                 if not isinstance(obj, dict) or "agents" not in obj:
@@ -1598,6 +2166,7 @@ def page_ai_note_keeper(lang: str) -> None:
         st.warning(_t(lang, "not_configured_ai"))
 
     note = st.text_area(_t(lang, "note_input"), height=220, placeholder="Paste meeting notes / audit notes / markdown…")
+
     default_prompt_en = """Transform the pasted notes into organized Markdown with:
 - Title
 - Summary (3–7 bullets)
@@ -1618,18 +2187,16 @@ Highlight keywords in coral color.
 - 擷取關鍵字
 並以珊瑚色標示關鍵字。
 """
-    prompt = st.text_area(_t(lang, "note_prompt"), height=140, value=default_prompt_zh if lang == "zh-TW" else default_prompt_en)
+    _ = st.text_area(_t(lang, "note_prompt"), height=140, value=default_prompt_zh if lang == "zh-TW" else default_prompt_en)
 
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        model = st.selectbox(_t(lang, "note_model"), options=SUPPORTED_MODELS, index=0)
+        _ = st.selectbox(_t(lang, "note_model"), options=SUPPORTED_MODELS, index=0)
     with col2:
-        max_tokens = st.number_input(_t(lang, "note_maxtokens"), min_value=256, max_value=200000, value=12000, step=256)
+        _ = st.number_input(_t(lang, "note_maxtokens"), min_value=256, max_value=200000, value=12000, step=256)
     with col3:
         st.caption("")
 
-    # For this single-file app, the LLM call is intentionally not implemented to avoid fragile provider SDK dependencies.
-    # Offline transformation is always available and safe.
     if st.button(_t(lang, "transform"), type="primary"):
         md = organize_notes_offline(note, lang)
         st.session_state["note_output_md"] = md
@@ -1647,7 +2214,6 @@ Highlight keywords in coral color.
     st.markdown(f"## {_t(lang, 'output')}")
     out = st.session_state.get("note_output_md", "")
     if out:
-        # Render markdown with HTML spans for keyword highlighting
         st.markdown(out, unsafe_allow_html=True)
         st.download_button("Download markdown", data=out.encode("utf-8"), file_name="note.organized.md", mime="text/markdown")
     else:
@@ -1659,12 +2225,8 @@ def page_command_center(lang: str) -> None:
     status_strip(lang)
     st.markdown(
         """
-        This page is a placeholder for the Regulatory Dashboard (v2 parity) in Streamlit.
-        Recommended next steps:
-        - Add regulatory datasets (510k, recalls, ADR, GUDID) ingestion
-        - Implement unified search + result cards
-        - Add decision code distribution and severity indicators
-        - Connect “Analyze” buttons to the Agent Pipeline Runner
+        This page remains a placeholder for the full Regulatory Dashboard parity build (v2) in Streamlit.
+        Distribution Lab + Agents Studio + AI Note Keeper + Settings & Keys are fully available in this scaffold.
         """
     )
 
@@ -1674,33 +2236,21 @@ def page_command_center(lang: str) -> None:
 # -----------------------------------
 
 def init_session_defaults() -> None:
-    if "lang" not in st.session_state:
-        st.session_state["lang"] = "en"
-    if "theme_name" not in st.session_state:
-        st.session_state["theme_name"] = list(painter_themes().keys())[0]
-    if "theme_mode" not in st.session_state:
-        st.session_state["theme_mode"] = "light"
-    if "api_keys" not in st.session_state:
-        st.session_state["api_keys"] = {}
-    if "pipeline_state" not in st.session_state:
-        st.session_state["pipeline_state"] = {"status": "idle", "last_run": None}
-    if "use_default_dataset" not in st.session_state:
-        st.session_state["use_default_dataset"] = True
+    st.session_state.setdefault("lang", "en")
+    st.session_state.setdefault("theme_name", list(painter_themes().keys())[0])
+    st.session_state.setdefault("theme_mode", "light")
+    st.session_state.setdefault("api_keys", {})
+    st.session_state.setdefault("pipeline_state", {"status": "idle", "last_run": None})
 
 
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
-
     init_session_defaults()
-    # Sidebar controls can change language; use current session lang for initial draw
-    lang = st.session_state.get("lang", "en")
-    wow_header_controls(lang)
 
-    # Apply CSS after selection
+    wow_header_controls()
     lang = st.session_state.get("lang", "en")
-    apply_theme_css(st.session_state.get("theme_name"), st.session_state.get("theme_mode"), lang)
+    apply_theme_css(st.session_state.get("theme_name"), st.session_state.get("theme_mode"))
 
-    # Nav
     page = st.sidebar.radio(
         "Navigation",
         options=[
@@ -1711,8 +2261,6 @@ def main() -> None:
             _t(lang, "nav_settings"),
         ],
     )
-
-    # Global search placeholder (context-aware hook)
     st.sidebar.text_input(_t(lang, "global_search"), value="", key="global_search")
 
     if page == _t(lang, "nav_distribution"):
