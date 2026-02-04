@@ -1803,21 +1803,33 @@ def page_command_center(lang: str) -> None:
 # -----------------------------------
 
 def init_session_defaults() -> None:
-    st.session_state.setdefault("lang", "en")
-    st.session_state.setdefault("theme_name", list(painter_themes().keys())[0])
-    st.session_state.setdefault("theme_mode", "light")
-    st.session_state.setdefault("api_keys", {})
-    st.session_state.setdefault("pipeline_state", {"status": "idle", "last_run": None})
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "en"
+    if "theme_name" not in st.session_state:
+        st.session_state["theme_name"] = list(painter_themes().keys())[0]
+    if "theme_mode" not in st.session_state:
+        st.session_state["theme_mode"] = "light"
+    if "api_keys" not in st.session_state:
+        st.session_state["api_keys"] = {}
+    if "pipeline_state" not in st.session_state:
+        st.session_state["pipeline_state"] = {"status": "idle", "last_run": None}
+    if "use_default_dataset" not in st.session_state:
+        st.session_state["use_default_dataset"] = True
 
 
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
+
     init_session_defaults()
-
-    wow_header_controls()
+    # Sidebar controls can change language; use current session lang for initial draw
     lang = st.session_state.get("lang", "en")
-    apply_theme_css(st.session_state.get("theme_name"), st.session_state.get("theme_mode"))
+    wow_header_controls(lang)
 
+    # Apply CSS after selection
+    lang = st.session_state.get("lang", "en")
+    apply_theme_css(st.session_state.get("theme_name"), st.session_state.get("theme_mode"), lang)
+
+    # Nav
     page = st.sidebar.radio(
         "Navigation",
         options=[
@@ -1828,6 +1840,8 @@ def main() -> None:
             _t(lang, "nav_settings"),
         ],
     )
+
+    # Global search placeholder (context-aware hook)
     st.sidebar.text_input(_t(lang, "global_search"), value="", key="global_search")
 
     if page == _t(lang, "nav_distribution"):
