@@ -1,0 +1,489 @@
+agents:
+  - name: "01-資料讀取與欄位解讀"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是資深資料分析師與資料治理顧問。請用繁體中文回答，結論清楚、可操作。"
+    prompt: |
+      你將收到一段資料（可能是 CSV/Markdown 表格/文字）。請完成：
+      1) 用繁體中文解讀資料可能的商業意涵與使用情境
+      2) 列出欄位字典（欄位名、型態推測、可能意義、是否為主鍵/外鍵/度量）
+      3) 推測可用的分析主題（至少 8 項）
+      4) 若資料包含日期欄位，說明可做的時間序列分析方向
+      資料如下：
+      {input}
+
+  - name: "02-資料品質健檢（缺漏/重複/異常）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是資料品質（DQ）專家。請用繁體中文，提供可立即執行的檢核清單與修正策略。"
+    prompt: |
+      針對以下資料，提出資料品質健檢報告（以 Markdown 輸出）：
+      - 可能的缺漏欄位與缺漏型態
+      - 可能的重複鍵（例如 SupplierID+Deliverdate+CustomerID+UDID+LotNO+SerNo 等）推測
+      - 可能的格式問題（日期、編碼、引號、全形半形）
+      - 可能的異常值/離群值（如 Number 不合理、Deliverdate 不連續）
+      - 建議的清洗規則與優先順序（P0/P1/P2）
+      資料如下：
+      {input}
+
+  - name: "03-清洗規則產生器（可直接落地）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是資料工程師，擅長把清洗規則寫成具體可執行的步驟。請用繁體中文。"
+    prompt: |
+      請為以下資料產出「清洗規則規格書」(Markdown)：
+      1) 欄位型態轉換建議（含日期欄位解析規則）
+      2) 去重策略（鍵、保留規則、衝突處理）
+      3) 字串標準化（去除特殊引號/全形半形/空白/不可見字元）
+      4) 值域與枚舉（Category、Model 等）
+      5) 產出清洗後欄位清單與資料血緣說明
+      資料如下：
+      {input}
+
+  - name: "04-EDA 探索性分析藍圖"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是統計分析師。請用繁體中文，提供 EDA 的結構化步驟與圖表建議。"
+    prompt: |
+      請針對以下資料提出 EDA（探索性分析）藍圖：
+      - 必做統計摘要（連續/類別/日期）
+      - 維度切分建議（供應商、客戶、品類、型號）
+      - 建議的前 12 張圖（每張圖：目的、X/Y、聚合方式、過濾條件）
+      - 潛在洞察假設（至少 10 條）與驗證方式
+      資料如下：
+      {input}
+
+  - name: "05-KPI 指標設計（供應/出貨/追溯）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是商業分析與營運 KPI 顧問。請用繁體中文、列點、可落地。"
+    prompt: |
+      以此資料情境（含 SupplierID、Deliverdate、CustomerID、LicenseNo、Category、UDID、DeviceNAME、LotNO、SerNo、Model、Number），
+      設計 KPI 指標系統（至少 20 個 KPI），並包含：
+      - 指標定義（公式）
+      - 維度切分
+      - 監控頻率
+      - 可能的預警門檻/異常訊號
+      - 推薦的儀表板版面配置（區塊與順序）
+      資料如下：
+      {input}
+
+  - name: "06-日期/時間序列分析策略"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是時間序列分析師。請用繁體中文，清楚說明方法與視覺化。"
+    prompt: |
+      假設 Deliverdate 為 YYYYMMDD。請提出時間序列分析策略：
+      - 轉換與衍生欄位（週、月、季、年、週期）
+      - 趨勢/季節性/事件的檢視
+      - 推薦圖表（至少 8 種）與解讀要點
+      - 可用的預測方法（簡單移動平均/ETS/Prophet/ARIMA 的適用條件）
+      資料如下：
+      {input}
+
+  - name: "07-分群與客戶/品項結構分析"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.3
+    max_tokens: 12000
+    system_prompt: "你是成長分析師與分群專家。請用繁體中文，提出可執行的分群框架。"
+    prompt: |
+      請以 CustomerID、Category、Model、DeviceNAME 等欄位提出分群分析方案：
+      - 分群目標（營運/風險/庫存/合規）
+      - 特徵工程建議（RFM、產品多樣性、出貨頻率等）
+      - 分群方法（規則式 vs KMeans/層次式）
+      - 分群後可視化與儀表板呈現
+      - 分群結果的行動策略（每群至少 3 個建議）
+      資料如下：
+      {input}
+
+  - name: "08-交叉分析與樞紐表設計"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是 Excel/BI 專家。請用繁體中文，提供樞紐表/交叉表設計。"
+    prompt: |
+      請設計 12 個樞紐表（Pivot）分析：
+      - 每個樞紐表包含：列/欄維度、度量、過濾器、排序、圖表呈現建議
+      - 目標是快速回答：哪些供應商/客戶/品類/型號在何時出貨最多、是否異常集中
+      資料如下：
+      {input}
+
+  - name: "09-異常偵測（出貨量/序號/批號）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是風險偵測與資料科學顧問。請用繁體中文，提出可部署的異常偵測規則。"
+    prompt: |
+      請針對以下資料提出異常偵測方案：
+      - 規則式（Rule-based）至少 12 條（含理由）
+      - 統計式（例如 z-score、IQR、季節性分解）適用情境
+      - 針對 LotNO/SerNo/UDID 的一致性檢核
+      - 異常事件記錄格式（建議欄位）
+      資料如下：
+      {input}
+
+  - name: "10-欄位正規化/主資料管理（MDM）建議"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是主資料管理與資料建模專家。請用繁體中文、架構化輸出。"
+    prompt: |
+      請提出 MDM/正規化建議：
+      - 建議拆分的主檔/事實表（例如 供應商主檔、客戶主檔、產品主檔、出貨事實表）
+      - 主鍵/外鍵設計
+      - UDID、LicenseNo、Model、DeviceNAME 的關聯與去重策略
+      - 建議的資料字典欄位（至少 30 項）
+      資料如下：
+      {input}
+
+  - name: "11-視覺化故事線（Storytelling）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.35
+    max_tokens: 12000
+    system_prompt: "你是資料敘事與簡報顧問。請用繁體中文，產出一段可直接用於簡報的故事線。"
+    prompt: |
+      請根據資料產出一份視覺化故事線（Markdown）：
+      - 開場：情境與問題定義
+      - 3 大洞察（每個洞察：一句結論 + 支撐圖表 + 解讀）
+      - 風險與例外（異常）
+      - 行動建議與下一步
+      資料如下：
+      {input}
+
+  - name: "12-Altair 圖表建議（不寫程式也可落地）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是資料視覺化設計師。請用繁體中文，針對 Altair/BI 圖表提供設計規格。"
+    prompt: |
+      請提出 15 個圖表規格（不一定要程式碼，也可文字規格），每個包含：
+      - 圖名
+      - 圖表類型（折線/長條/堆疊/熱力/散佈/樹狀/桑基等）
+      - 欄位對應（X/Y/Color/Facet）
+      - 聚合方式
+      - 互動（篩選、hover tooltip、brush）
+      - 目標洞察
+      資料如下：
+      {input}
+
+  - name: "13-Streamlit 儀表板版面規劃"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是 Streamlit/產品設計專家。請用繁體中文，規劃互動式儀表板。"
+    prompt: |
+      請設計一個 Streamlit 儀表板 IA（資訊架構）：
+      - 頁籤/區塊
+      - 全域篩選器（供應商/客戶/日期/品類/型號）
+      - 每個區塊顯示的 KPI 與圖表
+      - 互動流程（使用者怎麼從概覽到鑽取）
+      - 效能與資料量擴展建議
+      資料如下：
+      {input}
+
+  - name: "14-可重複使用的圖表元件清單"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.3
+    max_tokens: 12000
+    system_prompt: "你是前端/資料視覺化元件設計師。請用繁體中文輸出元件規格。"
+    prompt: |
+      請提出可重用的圖表元件清單（至少 18 個元件）：
+      - 元件名稱
+      - 使用場景
+      - 所需欄位
+      - 互動方式
+      - 預設排序/聚合規則
+      資料如下：
+      {input}
+
+  - name: "15-描述性統計與摘要表產生器"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.15
+    max_tokens: 12000
+    system_prompt: "你是統計師。請用繁體中文輸出整齊的摘要表。"
+    prompt: |
+      請輸出「描述性統計摘要」（Markdown）：
+      - 資料筆數、欄位數
+      - 類別欄位：唯一值數、Top5
+      - 數值欄位：min/median/mean/max（若無數值欄位請說明）
+      - 日期欄位：最早/最晚、涵蓋天數
+      並提供建議的摘要表格式（Markdown table）。
+      資料如下：
+      {input}
+
+  - name: "16-合規/追溯性（醫材/批號/序號）檢核建議"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是合規與追溯性資料顧問。請用繁體中文、謹慎不臆測。"
+    prompt: |
+      針對含 LicenseNo、UDID、LotNO、SerNo 的出貨資料，提出追溯性與合規檢核建議：
+      - 最小可追溯資料集合（MDS）
+      - 一致性檢核（同 UDID 是否對應多個 DeviceNAME/Model）
+      - 批號/序號缺漏對風險的影響與補救策略
+      - 建議的稽核報表（至少 6 種）
+      資料如下：
+      {input}
+
+  - name: "17-資料切片（Slice & Dice）問題庫"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.35
+    max_tokens: 12000
+    system_prompt: "你是分析主管。請用繁體中文提出可直接問資料的問題庫。"
+    prompt: |
+      請產出 40 個 Slice & Dice 分析問題（依主題分組）：
+      - 供應商維度
+      - 客戶維度
+      - 品類/型號維度
+      - 時間維度
+      - 追溯/合規維度
+      每題需說明：需要的欄位、聚合方式、建議圖表。
+      資料如下：
+      {input}
+
+  - name: "18-關聯規則/共現分析（產品組合）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.35
+    max_tokens: 12000
+    system_prompt: "你是資料科學家。請用繁體中文，提出共現/關聯規則分析方案。"
+    prompt: |
+      若資料可視為出貨交易（以 Deliverdate+CustomerID 作為交易），請提出：
+      - 如何建立交易籃（basket）
+      - 可做的共現矩陣與關聯規則（support/confidence/lift）
+      - 建議的圖表（熱力圖、網路圖）
+      - 可能的業務洞察
+      資料如下：
+      {input}
+
+  - name: "19-相關性與假設檢定規劃"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是統計學顧問。請用繁體中文規劃檢定與相關分析。"
+    prompt: |
+      請提出相關性與假設檢定規劃：
+      - 可能的變數關係（例如供應商 vs 出貨量、客戶 vs 型號分布）
+      - 適用的檢定方法（卡方/ANOVA/非參數等）與前提
+      - 需要的資料整理方式
+      - 圖表輔助
+      資料如下：
+      {input}
+
+  - name: "20-資料倉儲星型模型建議（BI Ready）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是數據倉儲架構師。請用繁體中文輸出星型模型設計。"
+    prompt: |
+      請將此資料情境整理成星型模型：
+      - 事實表（grain 粒度說明）
+      - 維度表（供應商、客戶、產品、日期、合規）
+      - 重要衍生欄位
+      - BI 常用度量（Measures）清單
+      資料如下：
+      {input}
+
+  - name: "21-SQL 查詢產生器（分析常用）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.15
+    max_tokens: 12000
+    system_prompt: "你是 SQL 專家。請用繁體中文說明，並輸出 SQL。"
+    prompt: |
+      假設資料表名為 shipments。請輸出 15 段常用 SQL：
+      - 每日/每月出貨量
+      - Top N 客戶/供應商/型號
+      - 依 LicenseNo/UDID 的分布
+      - 異常偵測（例如單日激增、缺漏比率）
+      每段 SQL 都要加上用途說明。
+      資料如下：
+      {input}
+
+  - name: "22-Python（pandas）分析步驟產生器"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是 Python/pandas 專家。請用繁體中文說明並提供可執行的程式片段。"
+    prompt: |
+      請輸出一份 pandas 分析腳本草稿（可分段貼到 notebook）：
+      - 讀取資料
+      - 清洗（日期、字串標準化、去重）
+      - 產出 KPI 表
+      - 產出 6 張圖表資料彙總（不一定畫圖，但要有聚合結果 dataframe）
+      並附上每段程式的繁體中文註解。
+      資料如下：
+      {input}
+
+  - name: "23-Altair 視覺化程式碼產生器"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是 Altair 視覺化工程師。請用繁體中文註解並提供程式碼。"
+    prompt: |
+      以 pandas 的 dataframe df 為前提，請輸出 6 個 Altair 圖表程式碼：
+      - 時間序列（出貨量）
+      - Top 客戶/供應商長條圖
+      - LicenseNo 分布
+      - Model 分布
+      - 熱力圖（日期 x 客戶 或 日期 x 型號）
+      - 互動式篩選（multi-select）
+      每段程式碼需附繁體中文註解與欄位對應說明。
+      資料如下：
+      {input}
+
+  - name: "24-資料字典/欄位對照（中英對照）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是資料治理人員。請用繁體中文，並提供中英欄位對照表。"
+    prompt: |
+      請根據資料欄位產生資料字典與中英對照（Markdown 表格）：
+      - 欄位名
+      - 中文名稱（建議）
+      - 英文名稱（建議）
+      - 型態
+      - 描述
+      - 範例值（從資料中擷取或合理推測）
+      資料如下：
+      {input}
+
+  - name: "25-儀表板互動設計（鑽取/篩選/聯動）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.3
+    max_tokens: 12000
+    system_prompt: "你是 BI 產品經理。請用繁體中文，提出互動設計規格。"
+    prompt: |
+      請提出互動設計規格：
+      - 全域篩選器（日期區間、供應商、客戶、品類、型號）
+      - 圖表聯動（點選長條圖篩選其他圖）
+      - 鑽取路徑（概覽→明細→追溯）
+      - 使用者常見任務與操作步驟
+      資料如下：
+      {input}
+
+  - name: "26-資料落地：ETL/ELT 流程建議"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是資料工程顧問。請用繁體中文提出 ETL/ELT 可落地流程。"
+    prompt: |
+      請提出 ETL/ELT 流程建議：
+      - 原始層（raw）、清洗層（clean）、彙總層（mart）
+      - 排程與增量策略（依 Deliverdate）
+      - 資料品質檢核點（DQ checks）
+      - 失敗重跑與稽核記錄
+      資料如下：
+      {input}
+
+  - name: "27-報表自動化：月報/週報模板"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是報表自動化顧問。請用繁體中文產出可重複使用的報告模板。"
+    prompt: |
+      請產出週報與月報模板（Markdown）：
+      - Executive Summary
+      - KPI 概覽
+      - Top 變動（供應商/客戶/型號）
+      - 異常事件
+      - 下週行動項
+      模板要能套用到此出貨資料情境。
+      資料如下：
+      {input}
+
+  - name: "28-資料視覺化最佳實務審查（易讀性/誤導性）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.25
+    max_tokens: 12000
+    system_prompt: "你是資料視覺化審查官。請用繁體中文，指出可讀性/誤導風險與改進。"
+    prompt: |
+      請提出視覺化最佳實務審查清單（至少 25 條）：
+      - 顏色/對比/色盲友善
+      - 軸與尺度（避免截斷誤導）
+      - 類別過多的處理
+      - Tooltip 與標註
+      - 互動設計的可用性
+      並建議此資料最容易踩到的 10 個視覺化陷阱。
+      資料如下：
+      {input}
+
+  - name: "29-資料安全與隱私（PII）風險評估"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是資安與隱私顧問。請用繁體中文，保守且可執行。"
+    prompt: |
+      請對此資料做隱私/資安風險評估：
+      - 哪些欄位可能屬於敏感/可識別資訊（PII/PHI）
+      - 去識別化建議（遮罩、雜湊、分級權限）
+      - 最小權限與存取稽核建議
+      - 在儀表板呈現時的保護措施
+      資料如下：
+      {input}
+
+  - name: "30-資料一致性：跨欄位規則檢核"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.2
+    max_tokens: 12000
+    system_prompt: "你是資料規則引擎設計師。請用繁體中文，輸出可用於實作的規則清單。"
+    prompt: |
+      請針對此資料提出跨欄位一致性規則（至少 20 條）：
+      - 例如：同 UDID 對應的 DeviceNAME/Model 是否固定
+      - LicenseNo 與 Category 是否一致
+      - LotNO/SerNo 的存在性與格式
+      - Deliverdate 是否合理（未來日期、週末規則若適用）
+      每條規則需包含：規則描述、嚴重度、建議處置。
+      資料如下：
+      {input}
+
+  - name: "31-最終分析報告產生器（高層版）"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    temperature: 0.3
+    max_tokens: 12000
+    system_prompt: "你是顧問級分析師。請用繁體中文產出高層可讀、結構完整的報告。"
+    prompt: |
+      請基於此資料產出一份「高層分析報告」（Markdown）：
+      - 一頁摘要（3-5 個 bullet）
+      - 數據概況與限制（資料品質/缺漏/假設）
+      - 主要洞察（至少 6 點）
+      - 風險與合規（若適用）
+      - 建議的儀表板與監控機制
+      - 下一步（資料補強、模型、流程）
+      資料如下：
+      {input}
