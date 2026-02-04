@@ -1607,18 +1607,196 @@ def page_settings_keys(lang: str) -> None:
 def page_agents_studio(lang: str) -> None:
     st.markdown(f"# {_t(lang, 'nav_agents')}")
     status_strip(lang)
-    st.info("Agents Studio scaffold kept; unchanged from prior version.")
+
+    if yaml is None:
+        st.error("PyYAML is not installed. Agents Studio requires PyYAML.")
+        return
+
+    st.markdown(f"## {_t(lang, 'agents_yaml')}")
+
+    # Load current YAML from session or disk/fallback
+    if "agents_yaml_raw" not in st.session_state:
+        disk_yaml = safe_load_text(DEFAULT_AGENTS_YAML_PATH, DEFAULT_AGENTS_YAML_FALLBACK)
+        st.session_state["agents_yaml_raw"] = disk_yaml
+        standardized, w = standardize_agents_yaml(disk_yaml)
+        st.session_state["agents_yaml_std"] = standardized
+        st.session_state["agents_yaml_warnings"] = w
+
+    colL, colR = st.columns([1, 1])
+
+    with colL:
+        st.markdown(f"### {_t(lang, 'paste_agents_yaml')}")
+        pasted = st.text_area("", value="", height=160, placeholder="Paste YAML here")
+
+        uploaded = st.file_uploader(_t(lang, "upload_agents_yaml"), type=["yaml", "yml"])
+
+        if st.button(_t(lang, "standardize"), type="primary"):
+            raw = ""
+            if uploaded is not None:
+                raw = try_read_text_file(uploaded)
+            elif pasted.strip():
+                raw = pasted
+            else:
+                raw = st.session_state.get("agents_yaml_raw", "")
+
+            std, w = standardize_agents_yaml(raw)
+            st.session_state["agents_yaml_raw"] = raw
+            st.session_state["agents_yaml_std"] = std
+            st.session_state["agents_yaml_warnings"] = w
+
+    with colR:
+        st.markdown(f"### {_t(lang, 'yaml_status')}")
+        w = st.session_state.get("agents_yaml_warnings", [])
+        if w:
+            st.warning("\n".join([f"- {x}" for x in w]))
+        else:
+            st.success("Standardized YAML is ready.")
+
+        std_text = st.session_state.get("agents_yaml_std", DEFAULT_AGENTS_YAML_FALLBACK)
+        st.download_button(
+            label=_t(lang, "download_yaml"),
+            data=std_text.encode("utf-8"),
+            file_name="agents.standardized.yaml",
+            mime="text/yaml",
+        )
+
+        if st.button(_t(lang, "import_yaml")):
+            # Validate minimally: must contain agents list
+            try:
+                obj = yaml.safe_load(std_text)
+                if not isinstance(obj, dict) or "agents" not in obj:
+                    st.error("Invalid standardized YAML: missing 'agents'.")
+                else:
+                    st.session_state["agents_yaml_active"] = std_text
+                    st.success("Imported standardized YAML into active config (session).")
+            except Exception as e:
+                st.error(f"Import failed: {e}")
+
+    st.markdown("### Active standardized YAML (editable)")
+    edited = st.text_area("", value=st.session_state.get("agents_yaml_std", DEFAULT_AGENTS_YAML_FALLBACK), height=420)
+    st.session_state["agents_yaml_std"] = edited
+
+    st.markdown(f"## {_t(lang, 'skill_md')}")
+    skill = safe_load_text(DEFAULT_SKILL_MD_PATH, DEFAULT_SKILL_MD_FALLBACK)
+    st.code(skill, language="markdown")
+
+
+def page_settings_keys(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_settings')}")
+    status_strip(lang)
+
+    if "api_keys" not in st.session_state:
+        st.session_state["api_keys"] = {}
+
+    st.info(_t(lang, "never_shown") + ": env keys are detected but never displayed.")
+
+    for p in PROVIDERS:
+        st.markdown(f"## {p.upper()} — {_t(lang, 'settings')}")
+        env_key = get_env_key(p)
+        ses_key = get_session_key(p)
+
+        if env_key:
+            st.success(f"{_t(lang, 'configured_env')}")
+            st.caption(_t(lang, "never_shown"))
+        elif ses_key:
+            st.success(f"{_t(lang, 'configured_session')}: {mask_key(ses_key)}")
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(_t(lang, "clear_key"), key=f"clear_{p}"):
+                    st.session_state["api_keys"][p] = ""
+                    st.rerun()
+            with col2:
+                st.caption("Stored in session only.")
+        else:
+            st.warning(_t(lang, "missing"))
+            key_in = st.text_input(_t(lang, "enter_key"), type="password", key=f"key_in_{p}")
+            if st.button(_t(lang, "save_key"), key=f"save_{p}", type="primary"):
+                if key_in.strip():
+                    st.session_state["api_keys"][p] = key_in.strip()
+                    st.rerun()
+                else:
+                    st.error("Empty key.")
 
 
 def page_ai_note_keeper(lang: str) -> None:
     st.markdown(f"# {_t(lang, 'nav_note_keeper')}")
     status_strip(lang)
+
     online = any_provider_configured()
     st.caption(_t(lang, "online_mode") if online else _t(lang, "offline_mode"))
     if not online:
         st.warning(_t(lang, "not_configured_ai"))
-    st.info("AI Note Keeper scaffold kept; unchanged from prior version.")
 
+    note = st.text_area(_t(lang, "note_input"), height=220, placeholder="Paste meeting notes / audit notes / markdown…")
+    default_prompt_en = """Transform the pasted notes into organized Markdown with:
+- Title
+- Summary (3–7 bullets)
+- Key Points
+- Actions/Owners/Due Dates (table if possible)
+- Risks & Compliance Impact
+- Open Questions
+- Extracted Keywords
+Highlight keywords in coral color.
+"""
+    default_prompt_zh = """將貼上的筆記整理成結構化 Markdown，包含：
+- 標題
+- 摘要（3–7 點）
+- 重點
+- 行動/負責人/到期日（可用表格）
+- 風險與合規影響
+- 待釐清問題
+- 擷取關鍵字
+並以珊瑚色標示關鍵字。
+"""
+    prompt = st.text_area(_t(lang, "note_prompt"), height=140, value=default_prompt_zh if lang == "zh-TW" else default_prompt_en)
+
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        model = st.selectbox(_t(lang, "note_model"), options=SUPPORTED_MODELS, index=0)
+    with col2:
+        max_tokens = st.number_input(_t(lang, "note_maxtokens"), min_value=256, max_value=200000, value=12000, step=256)
+    with col3:
+        st.caption("")
+
+    # For this single-file app, the LLM call is intentionally not implemented to avoid fragile provider SDK dependencies.
+    # Offline transformation is always available and safe.
+    if st.button(_t(lang, "transform"), type="primary"):
+        md = organize_notes_offline(note, lang)
+        st.session_state["note_output_md"] = md
+
+    st.markdown(f"## {_t(lang, 'ai_magics')}")
+    with st.expander(_t(lang, "ai_keywords"), expanded=True):
+        kws = st.text_input(_t(lang, "keywords_list"), value="")
+        color = st.color_picker(_t(lang, "keyword_color"), value=KEYWORD_DEFAULT_COLOR)
+        if st.button(_t(lang, "apply_keywords"), use_container_width=True):
+            out = st.session_state.get("note_output_md", "")
+            kw_list = [k.strip() for k in kws.split(",") if k.strip()]
+            highlighted = highlight_keywords_html(out, kw_list, color)
+            st.session_state["note_output_md"] = highlighted
+
+    st.markdown(f"## {_t(lang, 'output')}")
+    out = st.session_state.get("note_output_md", "")
+    if out:
+        # Render markdown with HTML spans for keyword highlighting
+        st.markdown(out, unsafe_allow_html=True)
+        st.download_button("Download markdown", data=out.encode("utf-8"), file_name="note.organized.md", mime="text/markdown")
+    else:
+        st.info("No output yet. Transform notes to generate organized markdown.")
+
+
+def page_command_center(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_command_center')}")
+    status_strip(lang)
+    st.markdown(
+        """
+        This page is a placeholder for the Regulatory Dashboard (v2 parity) in Streamlit.
+        Recommended next steps:
+        - Add regulatory datasets (510k, recalls, ADR, GUDID) ingestion
+        - Implement unified search + result cards
+        - Add decision code distribution and severity indicators
+        - Connect “Analyze” buttons to the Agent Pipeline Runner
+        """
+    )
 
 # -----------------------------------
 # Main
