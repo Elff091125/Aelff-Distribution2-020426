@@ -1483,6 +1483,346 @@ def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
         "qty_range": qty_range,
         "top_n": top_n,
     }
+###
+
+
+# -----------------------------------
+# Agents YAML (kept from v3.0 scaffold)
+# -----------------------------------
+
+DEFAULT_AGENTS_YAML_FALLBACK = """\
+version: "1.0"
+app:
+  name: "RCC"
+  default_language: "en"
+  default_max_tokens: 12000
+providers:
+  openai: {}
+  gemini: {}
+  anthropic: {}
+  grok: {}
+system_prompt:
+  source: "SKILL.md"
+agents:
+  - id: "dist_summary"
+    name: "Distribution Summary"
+    description: "Summarize distribution data and highlight anomalies."
+    provider: "openai"
+    model: "gpt-4o-mini"
+    max_tokens: 12000
+    input:
+      format: "markdown"
+      source: "dataset"
+    output:
+      format: "markdown"
+    prompt_template: |
+      You are analyzing a medical device distribution dataset.
+      Produce:
+      1) Executive summary
+      2) Top suppliers/customers/models/licenses
+      3) Time anomalies and possible explanations
+      4) Compliance risks and data quality issues
+pipelines:
+  default:
+    - dist_summary
+ui_hints:
+  icon: "dashboard"
+"""
+
+DEFAULT_SKILL_MD_FALLBACK = """\
+# RCC SKILL.md (fallback)
+You are a regulatory and distribution analytics assistant.
+
+## Safety & Privacy
+- Never request or reveal API keys or secrets.
+- Treat user data as confidential.
+- Do not fabricate claims; mark assumptions.
+
+## Formatting
+- Prefer structured Markdown with clear headings.
+- When highlighting keywords, keep a dedicated section "Extracted Keywords".
+
+## Language
+- Follow user-selected output language (English or Traditional Chinese) when requested.
+"""
+
+
+def safe_load_text(path: str, fallback: str) -> str:
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception:
+        pass
+    return fallback
+
+
+def detect_provider_from_model(model: str) -> str:
+    m = (model or "").lower().strip()
+    if m.startswith("gpt-") or "openai" in m:
+        return "openai"
+    if m.startswith("gemini-") or "google" in m:
+        return "gemini"
+    if m.startswith("claude") or m.startswith("anthropic:"):
+        return "anthropic"
+    if m.startswith("grok-") or "xai" in m:
+        return "grok"
+    return "openai"
+
+
+def slugify(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or f"agent_{uuid.uuid4().hex[:8]}"
+
+
+def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
+    warnings: List[str] = []
+    if yaml is None:
+        return raw_yaml, ["PyYAML not installed; cannot standardize."]
+
+    try:
+        obj = yaml.safe_load(raw_yaml) if raw_yaml.strip() else None
+    except Exception as e:
+        return raw_yaml, [f"YAML parse error: {e}"]
+
+    if obj is None:
+        return DEFAULT_AGENTS_YAML_FALLBACK, ["Empty YAML; loaded fallback standard template."]
+
+    if isinstance(obj, list):
+        warnings.append("Top-level YAML is a list; wrapping into canonical schema under 'agents'.")
+        obj = {"agents": obj}
+
+    if isinstance(obj, dict) and "steps" in obj and "agents" not in obj:
+        warnings.append("Detected 'steps' format; converting to agents + default pipeline.")
+        steps = obj.get("steps", [])
+        agents = []
+        pipeline = []
+        for i, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            name = step.get("name") or step.get("id") or f"Step {i+1}"
+            aid = slugify(step.get("id") or name)
+            model = step.get("model") or step.get("llm") or "gpt-4o-mini"
+            provider = step.get("provider") or detect_provider_from_model(model)
+            prompt = step.get("prompt") or step.get("instruction") or step.get("template") or ""
+            agents.append(
+                {
+                    "id": aid,
+                    "name": name,
+                    "description": step.get("description", ""),
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": int(step.get("max_tokens") or step.get("maxTokens") or 12000),
+                    "input": {"format": "markdown", "source": "previous" if i > 0 else "manual"},
+                    "output": {"format": "markdown"},
+                    "prompt_template": prompt,
+                }
+            )
+            pipeline.append(aid)
+        obj = {
+            "version": "1.0",
+            "app": {"name": "RCC", "default_language": "en", "default_max_tokens": 12000},
+            "providers": {p: {} for p in PROVIDERS},
+            "system_prompt": {"source": "SKILL.md"},
+            "agents": agents,
+            "pipelines": {"default": pipeline},
+        }
+
+    if isinstance(obj, dict):
+        obj.setdefault("version", "1.0")
+        obj.setdefault("app", {"name": "RCC", "default_language": "en", "default_max_tokens": 12000})
+        obj.setdefault("providers", {p: {} for p in PROVIDERS})
+        obj.setdefault("system_prompt", {"source": "SKILL.md"})
+
+        if "agents" not in obj:
+            maybe_prompt = obj.get("prompt") or obj.get("instruction") or obj.get("template")
+            if maybe_prompt:
+                model = obj.get("model") or "gpt-4o-mini"
+                provider = obj.get("provider") or detect_provider_from_model(model)
+                agent = {
+                    "id": slugify(obj.get("id") or obj.get("name") or "agent"),
+                    "name": obj.get("name") or "Agent",
+                    "description": obj.get("description") or "",
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": int(obj.get("max_tokens") or obj.get("maxTokens") or 12000),
+                    "input": {"format": "markdown", "source": "manual"},
+                    "output": {"format": "markdown"},
+                    "prompt_template": maybe_prompt,
+                }
+                obj["agents"] = [agent]
+                obj.setdefault("pipelines", {"default": [agent["id"]]})
+                warnings.append("Converted single-agent YAML into canonical schema.")
+            else:
+                obj["agents"] = []
+                warnings.append("No 'agents' found; created empty 'agents' list.")
+
+        agents = obj.get("agents", [])
+        if isinstance(agents, dict):
+            agents = [agents]
+            warnings.append("'agents' was dict; wrapped into list.")
+
+        norm_agents = []
+        seen = set()
+        for a in agents:
+            if not isinstance(a, dict):
+                continue
+            name = a.get("name") or a.get("id") or "Agent"
+            aid = a.get("id") or slugify(name)
+            if aid in seen:
+                aid = f"{aid}_{uuid.uuid4().hex[:6]}"
+                warnings.append(f"Duplicate agent id; renamed to {aid}.")
+            seen.add(aid)
+
+            model = a.get("model") or "gpt-4o-mini"
+            provider = a.get("provider") or detect_provider_from_model(model)
+            prompt = a.get("prompt_template") or a.get("prompt") or a.get("instruction") or ""
+            max_tokens = a.get("max_tokens") or a.get("maxTokens") or a.get("max_output_tokens") or 12000
+            try:
+                max_tokens = int(max_tokens)
+            except Exception:
+                max_tokens = 12000
+                warnings.append(f"Agent {aid}: invalid max_tokens; defaulted to 12000.")
+
+            inp = a.get("input") if isinstance(a.get("input"), dict) else {}
+            outp = a.get("output") if isinstance(a.get("output"), dict) else {}
+
+            norm_agents.append(
+                {
+                    "id": aid,
+                    "name": name,
+                    "description": a.get("description", ""),
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": max_tokens,
+                    "temperature": a.get("temperature", None),
+                    "input": {"format": inp.get("format", "markdown"), "source": inp.get("source", "previous")},
+                    "output": {"format": outp.get("format", "markdown")},
+                    "prompt_template": prompt,
+                }
+            )
+
+        obj["agents"] = norm_agents
+        obj.setdefault("pipelines", {"default": [a["id"] for a in norm_agents]})
+
+    standardized = yaml.safe_dump(obj, sort_keys=False, allow_unicode=True)
+    return standardized, warnings
+
+
+# -----------------------------------
+# Offline AI Note transformation (kept)
+# -----------------------------------
+
+def extract_keywords_simple(text: str, max_k: int = 12) -> List[str]:
+    text = (text or "").strip()
+    if not text:
+        return []
+    candidates = []
+    candidates += re.findall(r"(衛部醫器[^\s,，]{6,}號)", text)
+    candidates += re.findall(r"\b\d{14}\b", text)
+    candidates += re.findall(r"\b[A-Z]{1,5}\d{2,6}\b", text)
+
+    tokens = re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{4,}", text)
+    freq: Dict[str, int] = {}
+    for t in tokens:
+        t = t.strip()
+        if len(t) < 2:
+            continue
+        freq[t] = freq.get(t, 0) + 1
+    top = [k for k, _ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)[: max_k * 2]]
+
+    out = []
+    for k in candidates + top:
+        if k not in out:
+            out.append(k)
+        if len(out) >= max_k:
+            break
+    return out[:max_k]
+
+
+def organize_notes_offline(note_text: str, lang: str) -> str:
+    kws = extract_keywords_simple(note_text, max_k=12)
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    if lang == "zh-TW":
+        md = f"""# 筆記整理（離線模式）
+
+## 摘要
+- 由系統在**離線模式**下整理（未呼叫外部模型）。
+- 請確認重點、責任歸屬與日期是否正確。
+- 產出時間：{now}
+
+## 重點
+- （請人工補充）主要事件／決策／風險
+- （請人工補充）下一步與期限
+
+## 行動項目 / 負責人 / 到期日
+| 行動 | 負責人 | 到期日 |
+|---|---|---|
+| （待補） | （待補） | （待補） |
+
+## 風險與合規影響
+- （待補）可能的合規風險、資料缺口、追蹤需求
+
+## 待釐清問題
+- （待補）哪些資訊缺少證據或需要確認？
+
+## 擷取關鍵字
+{chr(10).join([f"- {k}" for k in kws]) if kws else "- （無）"}
+
+## 原始筆記
+```text
+{note_text.strip()}
+```
+"""
+    else:
+        md = f"""# Note Organizer (Offline Mode)
+
+## Summary
+- Produced in **offline mode** (no external model call).
+- Please verify key points, ownership, and dates.
+- Generated at: {now}
+
+## Key Points
+- (Fill in) Primary events / decisions / risks
+- (Fill in) Next steps and deadlines
+
+## Actions / Owners / Due Dates
+| Action | Owner | Due Date |
+|---|---|---|
+| (TBD) | (TBD) | (TBD) |
+
+## Risks & Compliance Impact
+- (TBD) Potential compliance risks, data gaps, follow-ups
+
+## Open Questions
+- (TBD) What claims lack evidence or require confirmation?
+
+## Extracted Keywords
+{chr(10).join([f"- {k}" for k in kws]) if kws else "- (none)"}
+
+## Original Notes
+```text
+{note_text.strip()}
+```
+"""
+    return md
+
+
+def highlight_keywords_html(md_text: str, keywords: List[str], color: str) -> str:
+    if not md_text or not keywords:
+        return md_text
+    kws = sorted(set([k for k in keywords if k.strip()]), key=len, reverse=True)
+    out = md_text
+    for k in kws:
+        pattern = re.escape(k)
+        out = re.sub(
+            pattern,
+            lambda m: f"<span class='rcc-keyword' style='color:{color};'>{m.group(0)}</span>",
+            out,
+        )
+    return out
 
 
 # -----------------------------------
