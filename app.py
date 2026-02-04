@@ -1,2165 +1,1731 @@
+
 import os
-import re
 import io
+import re
 import json
 import time
+import uuid
 import random
-import yaml
-from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
+import textwrap
+import datetime as dt
+from typing import Any, Dict, List, Optional, Tuple
 
+import pandas as pd
 import streamlit as st
 
-# Data + charts
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+try:
+    import yaml  # PyYAML
+except Exception:  # pragma: no cover
+    yaml = None
 
-# Network graph (click nodes)
-from streamlit_agraph import agraph, Node, Edge, Config
-
-
-# =========================
-# Page Config
-# =========================
-st.set_page_config(
-    page_title="Antigravity Agentic AI — WOW Workspace",
-    page_icon="🎨",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# =========================
-# I18N (English / Traditional Chinese)
-# =========================
-I18N = {
-    "en": {
-        "app_title": "Antigravity Agentic Workspace — WOW UI",
-        "subtitle": "Theme + Language + Painter Styles + Agent Chains + AI Note Keeper + Distribution Viz",
-        "sidebar_config": "Configuration",
-        "appearance": "Appearance",
-        "theme_mode": "Theme Mode",
-        "light": "Light",
-        "dark": "Dark",
-        "language": "Language",
-        "style_engine": "Style Engine (20 Painter Styles)",
-        "choose_style": "Choose Style",
-        "jackpot": "Jackpot",
-        "api_keys": "API Keys",
-        "openai_key": "OpenAI API Key",
-        "gemini_key": "Gemini API Key",
-        "anthropic_key": "Anthropic API Key",
-        "grok_key": "Grok (xAI) API Key",
-        "loaded_from_env": "Loaded from environment (hidden)",
-        "enter_if_missing": "Enter if not set in ENV",
-        "tabs_workspace": "Workspace",
-        "tabs_agents": "Agents",
-        "tabs_notes": "AI Note Keeper",
-        "tabs_distribution": "Distribution Visualization",
-        "tabs_history": "History",
-        "tabs_settings": "Settings",
-        "dashboard": "Interactive Dashboard",
-        "status": "WOW Status",
-        "documents": "Document Input",
-        "upload": "Upload Text / MD / PDF / CSV / JSON",
-        "load_sample": "Load sample dataset",
-        "doc_preview": "Preview",
-        "scan_keywords": "Scan for Keywords",
-        "keyword_color": "Keyword highlight color",
-        "keyword_list": "Keywords (comma-separated)",
-        "context": "Context",
-        "select_context_doc": "Select Context Document",
-        "or_manual_context": "Or paste manual context",
-        "agents_exec": "Agent Execution",
-        "chain_agents": "Chain Agents",
-        "start_chain": "Start Chain (step-by-step)",
-        "run_all": "Run Chain (auto)",
-        "reset_chain": "Reset Chain Session",
-        "agent_config": "Agent Config",
-        "model": "Model",
-        "max_tokens": "Max tokens",
-        "temperature": "Temperature",
-        "prompt": "Prompt",
-        "system_prompt": "System prompt",
-        "input_to_agent": "Input to this agent",
-        "run_agent": "Run this agent",
-        "output": "Output",
-        "output_view": "Output view",
-        "markdown": "Markdown",
-        "text": "Text",
-        "edit_output_for_next": "Edit output to use as input for next agent",
-        "use_as_next": "Use edited output as next input",
-        "next_agent": "Next agent",
-        "complete": "Complete",
-        "history": "Execution History",
-        "agents_yaml_editor": "Edit agents.yaml",
-        "save_config": "Save Config",
-        "saved": "Saved",
-        "invalid_yaml": "Invalid YAML",
-        "note_input": "Paste note (text/markdown)",
-        "organize": "Organize into markdown",
-        "note_view": "Note view",
-        "ai_magics": "AI Magics",
-        "magic_format": "AI Formatting (Organize)",
-        "magic_summary": "AI Summary",
-        "magic_actions": "AI Action Items",
-        "magic_flashcards": "AI Flashcards",
-        "magic_translate": "AI Translate (EN ↔ ZH-TW)",
-        "magic_keywords": "AI Keywords Highlight",
-        "ask_on_note": "Ask AI on this note (keeps prompt on the note)",
-        "ask": "Ask",
-        "provider_status": "Provider status",
-        "keys_status": "Keys status",
-        "token_estimate": "Token estimate",
-        "runs_today": "Runs (session)",
-        "last_run": "Last run",
-        "clear_history": "Clear history",
-
-        # Distribution tab
-        "dist_title": "Medical Device Distribution Visualization",
-        "dist_input": "Dataset Input",
-        "dist_upload": "Upload dataset (text/csv/json)",
-        "dist_paste": "Or paste dataset content here",
-        "dist_default": "Load default dataset",
-        "dist_standardize": "Standardize dataset",
-        "dist_preview": "Preview (first 20 records)",
-        "dist_filters": "Filters",
-        "dist_date_range": "Date range",
-        "dist_supplier": "SupplierID",
-        "dist_category": "Category",
-        "dist_license": "LicenseNo",
-        "dist_customer": "CustomerID",
-        "dist_viz": "Visualizations",
-        "dist_network": "Distribution Network (click nodes)",
-        "dist_sankey": "Flow (Supplier → Category → License → Customer)",
-        "dist_timeseries": "Time Series (shipments/units)",
-        "dist_top": "Top Entities",
-        "dist_heatmap": "Heatmap (Supplier × Category)",
-        "dist_summary": "Comprehensive Summary (1000–2000 words, Markdown)",
-        "dist_summary_prompt": "Summary prompt",
-        "dist_summary_model": "Summary model",
-        "dist_generate_summary": "Generate summary",
-        "dist_agent_run": "Run an agent on this filtered dataset",
-        "dist_select_agent": "Select agent",
-        "dist_run_selected_agent": "Run selected agent",
-        "dist_keep_prompt": "Keep prompt on this dataset",
-        "dist_dataset_name": "Dataset name",
-        "dist_node_info": "Node info",
-        "dist_no_data": "No data available. Upload/paste or load default dataset.",
-        "dist_transform_note": "If the dataset is not standardized, the system will transform it into a standardized schema.",
-    },
-    "zh-TW": {
-        "app_title": "反重力 Agentic 工作台 — WOW 介面",
-        "subtitle": "主題 + 語言 + 畫家風格 + Agent 串接 + AI 筆記管家 + 配送視覺化",
-        "sidebar_config": "設定",
-        "appearance": "外觀",
-        "theme_mode": "主題模式",
-        "light": "淺色",
-        "dark": "深色",
-        "language": "語言",
-        "style_engine": "風格引擎（20 種畫家風格）",
-        "choose_style": "選擇風格",
-        "jackpot": "彩球",
-        "api_keys": "API 金鑰",
-        "openai_key": "OpenAI API 金鑰",
-        "gemini_key": "Gemini API 金鑰",
-        "anthropic_key": "Anthropic API 金鑰",
-        "grok_key": "Grok（xAI）API 金鑰",
-        "loaded_from_env": "已由環境變數載入（不顯示）",
-        "enter_if_missing": "若 ENV 未設定請輸入",
-        "tabs_workspace": "工作區",
-        "tabs_agents": "Agents",
-        "tabs_notes": "AI 筆記管家",
-        "tabs_distribution": "配送視覺化",
-        "tabs_history": "歷史紀錄",
-        "tabs_settings": "設定",
-        "dashboard": "互動式儀表板",
-        "status": "WOW 狀態",
-        "documents": "文件輸入",
-        "upload": "上傳 Text / MD / PDF / CSV / JSON",
-        "load_sample": "載入範例資料集",
-        "doc_preview": "預覽",
-        "scan_keywords": "掃描關鍵字",
-        "keyword_color": "關鍵字高亮顏色",
-        "keyword_list": "關鍵字（逗號分隔）",
-        "context": "上下文",
-        "select_context_doc": "選擇上下文文件",
-        "or_manual_context": "或貼上手動上下文",
-        "agents_exec": "Agent 執行",
-        "chain_agents": "串接 Agents",
-        "start_chain": "開始串接（逐步）",
-        "run_all": "執行串接（自動）",
-        "reset_chain": "重置串接工作階段",
-        "agent_config": "Agent 設定",
-        "model": "模型",
-        "max_tokens": "Max tokens",
-        "temperature": "溫度",
-        "prompt": "提示詞",
-        "system_prompt": "系統提示詞",
-        "input_to_agent": "本 Agent 的輸入",
-        "run_agent": "執行此 Agent",
-        "output": "輸出",
-        "output_view": "輸出檢視",
-        "markdown": "Markdown",
-        "text": "文字",
-        "edit_output_for_next": "編輯輸出（作為下一個 Agent 的輸入）",
-        "use_as_next": "使用編輯後輸出作為下一步輸入",
-        "next_agent": "下一個 Agent",
-        "complete": "完成",
-        "history": "執行歷史",
-        "agents_yaml_editor": "編輯 agents.yaml",
-        "save_config": "儲存設定",
-        "saved": "已儲存",
-        "invalid_yaml": "YAML 格式錯誤",
-        "note_input": "貼上筆記（文字/Markdown）",
-        "organize": "整理成 Markdown",
-        "note_view": "筆記檢視",
-        "ai_magics": "AI 魔法",
-        "magic_format": "AI 排版整理（組織化）",
-        "magic_summary": "AI 摘要",
-        "magic_actions": "AI 行動事項",
-        "magic_flashcards": "AI 記憶卡",
-        "magic_translate": "AI 翻譯（英 ↔ 繁中）",
-        "magic_keywords": "AI 關鍵字高亮",
-        "ask_on_note": "針對此筆記提問（保留 Prompt 在筆記上）",
-        "ask": "提問",
-        "provider_status": "供應商狀態",
-        "keys_status": "金鑰狀態",
-        "token_estimate": "Token 估算",
-        "runs_today": "執行次數（本 session）",
-        "last_run": "最後執行",
-        "clear_history": "清除歷史",
-
-        # Distribution tab
-        "dist_title": "醫療器材配送/流向視覺化",
-        "dist_input": "資料集輸入",
-        "dist_upload": "上傳資料集（text/csv/json）",
-        "dist_paste": "或貼上資料內容",
-        "dist_default": "載入預設資料集",
-        "dist_standardize": "資料標準化",
-        "dist_preview": "預覽（前 20 筆）",
-        "dist_filters": "篩選器",
-        "dist_date_range": "日期區間",
-        "dist_supplier": "SupplierID",
-        "dist_category": "Category",
-        "dist_license": "LicenseNo",
-        "dist_customer": "CustomerID",
-        "dist_viz": "視覺化圖表",
-        "dist_network": "配送網路圖（可點擊節點）",
-        "dist_sankey": "流向（供應商 → 類別 → 許可證 → 客戶）",
-        "dist_timeseries": "時間序列（出貨筆數/數量）",
-        "dist_top": "Top 排行",
-        "dist_heatmap": "熱力圖（供應商 × 類別）",
-        "dist_summary": "完整摘要（1000–2000 字，Markdown）",
-        "dist_summary_prompt": "摘要提示詞",
-        "dist_summary_model": "摘要模型",
-        "dist_generate_summary": "產生摘要",
-        "dist_agent_run": "對篩選後資料執行 agents.yaml 的 Agent",
-        "dist_select_agent": "選擇 Agent",
-        "dist_run_selected_agent": "執行所選 Agent",
-        "dist_keep_prompt": "將 prompt 綁定到此資料集（保留）",
-        "dist_dataset_name": "資料集名稱",
-        "dist_node_info": "節點資訊",
-        "dist_no_data": "目前沒有資料。請上傳/貼上或載入預設資料集。",
-        "dist_transform_note": "若資料不是標準格式，系統會先轉換為標準資料集結構。",
-    },
-}
-
-# =========================
-# Styles (20 painter styles)
-# =========================
-PAINTER_STYLES = [
-    "van_gogh", "picasso", "monet", "da_vinci", "dali",
-    "mondrian", "warhol", "rembrandt", "klimt", "hokusai",
-    "munch", "okeeffe", "basquiat", "matisse", "pollock",
-    "kahlo", "hopper", "magritte", "cyberpunk", "bauhaus",
-]
-
-STYLE_PALETTES = {
-    "van_gogh": dict(accent="#F2C14E", accent2="#3A86FF", glow="#FFD166"),
-    "picasso": dict(accent="#EF476F", accent2="#118AB2", glow="#FFD166"),
-    "monet": dict(accent="#7BDFF2", accent2="#B2F7EF", glow="#EFF7F6"),
-    "da_vinci": dict(accent="#B08968", accent2="#7F5539", glow="#E6CCB2"),
-    "dali": dict(accent="#FFD60A", accent2="#7400B8", glow="#FFEE99"),
-    "mondrian": dict(accent="#E63946", accent2="#1D3557", glow="#F1FAEE"),
-    "warhol": dict(accent="#FF4D6D", accent2="#00BBF9", glow="#FEE440"),
-    "rembrandt": dict(accent="#8D6E63", accent2="#3E2723", glow="#D7CCC8"),
-    "klimt": dict(accent="#D4AF37", accent2="#7B2CBF", glow="#F7E7A9"),
-    "hokusai": dict(accent="#1D4ED8", accent2="#60A5FA", glow="#DBEAFE"),
-    "munch": dict(accent="#FF5D8F", accent2="#2D2A32", glow="#FFD6E8"),
-    "okeeffe": dict(accent="#2A9D8F", accent2="#E76F51", glow="#F4A261"),
-    "basquiat": dict(accent="#FCA311", accent2="#14213D", glow="#E5E5E5"),
-    "matisse": dict(accent="#FF7A00", accent2="#00A6FB", glow="#FDE74C"),
-    "pollock": dict(accent="#06D6A0", accent2="#073B4C", glow="#FFD166"),
-    "kahlo": dict(accent="#2EC4B6", accent2="#E71D36", glow="#FF9F1C"),
-    "hopper": dict(accent="#457B9D", accent2="#F4A261", glow="#E9C46A"),
-    "magritte": dict(accent="#4361EE", accent2="#F72585", glow="#B5179E"),
-    "cyberpunk": dict(accent="#00F5D4", accent2="#F15BB5", glow="#FEE440"),
-    "bauhaus": dict(accent="#E63946", accent2="#FCA311", glow="#1D3557"),
-}
-
-def _css(theme_mode: str, painter_style: str) -> str:
-    pal = STYLE_PALETTES.get(painter_style, STYLE_PALETTES["van_gogh"])
-    if theme_mode == "dark":
-        bg = "#0b0f19"
-        panel = "rgba(255,255,255,0.06)"
-        panel2 = "rgba(255,255,255,0.10)"
-        text = "rgba(255,255,255,0.92)"
-        muted = "rgba(255,255,255,0.70)"
-        border = "rgba(255,255,255,0.12)"
-    else:
-        bg = "#f7f8fc"
-        panel = "rgba(0,0,0,0.04)"
-        panel2 = "rgba(0,0,0,0.06)"
-        text = "rgba(0,0,0,0.88)"
-        muted = "rgba(0,0,0,0.65)"
-        border = "rgba(0,0,0,0.10)"
-    accent = pal["accent"]
-    accent2 = pal["accent2"]
-    glow = pal["glow"]
-    return f"""
-    <style>
-      :root {{
-        --wow-bg: {bg};
-        --wow-panel: {panel};
-        --wow-panel2: {panel2};
-        --wow-text: {text};
-        --wow-muted: {muted};
-        --wow-border: {border};
-        --wow-accent: {accent};
-        --wow-accent2: {accent2};
-        --wow-glow: {glow};
-        --wow-radius: 18px;
-      }}
-      [data-testid="stAppViewContainer"] {{
-        background: radial-gradient(1200px 700px at 10% 10%, color-mix(in srgb, var(--wow-accent) 25%, transparent), transparent 60%),
-                    radial-gradient(900px 600px at 90% 0%, color-mix(in srgb, var(--wow-accent2) 18%, transparent), transparent 55%),
-                    var(--wow-bg) !important;
-        color: var(--wow-text);
-      }}
-      .block-container {{ padding-top: 1.1rem; }}
-      [data-testid="stSidebar"] {{
-        background: linear-gradient(180deg, color-mix(in srgb, var(--wow-panel) 80%, transparent), transparent) !important;
-        border-right: 1px solid var(--wow-border);
-      }}
-      .wow-card {{
-        background: linear-gradient(180deg, var(--wow-panel), transparent);
-        border: 1px solid var(--wow-border);
-        border-radius: var(--wow-radius);
-        padding: 1rem 1rem;
-        box-shadow: 0 18px 60px rgba(0,0,0,0.15);
-      }}
-      .wow-hero {{
-        border-radius: calc(var(--wow-radius) + 6px);
-        padding: 1.15rem 1.2rem;
-        border: 1px solid var(--wow-border);
-        background: linear-gradient(110deg,
-          color-mix(in srgb, var(--wow-accent) 20%, transparent),
-          color-mix(in srgb, var(--wow-accent2) 16%, transparent));
-      }}
-      .wow-title {{ font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }}
-      .wow-subtitle {{ margin: 0.35rem 0 0 0; color: var(--wow-muted); }}
-      .wow-chip {{
-        display: inline-flex; gap: 0.45rem; align-items: center;
-        padding: 0.35rem 0.6rem; border-radius: 999px;
-        border: 1px solid var(--wow-border);
-        background: color-mix(in srgb, var(--wow-panel2) 85%, transparent);
-        font-size: 0.85rem; color: var(--wow-text);
-        margin-right: 0.35rem; margin-top: 0.35rem;
-      }}
-      .wow-dot {{
-        width: 9px; height: 9px; border-radius: 50%;
-        background: var(--wow-accent);
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--wow-accent) 25%, transparent);
-      }}
-      .wow-dot2 {{
-        background: var(--wow-accent2);
-        box-shadow: 0 0 0 4px color-mix(in srgb, var(--wow-accent2) 25%, transparent);
-      }}
-      .stButton > button {{
-        border-radius: 14px !important;
-        border: 1px solid var(--wow-border) !important;
-        background: linear-gradient(135deg,
-          color-mix(in srgb, var(--wow-accent) 22%, transparent),
-          color-mix(in srgb, var(--wow-accent2) 18%, transparent)) !important;
-        color: var(--wow-text) !important;
-        font-weight: 650 !important;
-      }}
-      .stButton > button:hover {{
-        border-color: color-mix(in srgb, var(--wow-accent) 55%, var(--wow-border)) !important;
-      }}
-      .stTextArea textarea, .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {{
-        border-radius: 14px !important;
-        border: 1px solid var(--wow-border) !important;
-        background: color-mix(in srgb, var(--wow-panel2) 70%, transparent) !important;
-        color: var(--wow-text) !important;
-      }}
-      details {{
-        border-radius: var(--wow-radius) !important;
-        border: 1px solid var(--wow-border) !important;
-        background: color-mix(in srgb, var(--wow-panel) 85%, transparent) !important;
-        padding: 0.35rem 0.6rem;
-      }}
-      [data-testid="stMetric"] {{
-        background: color-mix(in srgb, var(--wow-panel) 70%, transparent);
-        border-radius: var(--wow-radius);
-        border: 1px solid var(--wow-border);
-        padding: 0.9rem;
-      }}
-      .kw {{
-        padding: 0.08rem 0.25rem;
-        border-radius: 0.5rem;
-        border: 1px solid color-mix(in srgb, var(--wow-border) 60%, transparent);
-        margin: 0 0.08rem;
-        display: inline-block;
-      }}
-    </style>
-    """
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except Exception:  # pragma: no cover
+    px = None
+    go = None
 
 
-# =========================
-# Session State Init
-# =========================
-def ss_init():
-    if "lang" not in st.session_state:
-        st.session_state.lang = "en"
-    if "theme_mode" not in st.session_state:
-        st.session_state.theme_mode = "dark"
-    if "painter_style" not in st.session_state:
-        st.session_state.painter_style = "van_gogh"
+# -----------------------------
+# App constants
+# -----------------------------
 
-    if "agents_config" not in st.session_state:
-        st.session_state.agents_config = None
+APP_TITLE = "Regulatory Command Center (RCC) — v3.0"
+DEFAULT_DATASET_PATH = "defaultdataset.json"
+DEFAULT_AGENTS_YAML_PATH = "agents.yaml"
+DEFAULT_SKILL_MD_PATH = "SKILL.md"
 
-    if "processed_docs" not in st.session_state:
-        st.session_state.processed_docs = {}  # name -> text/preview
-    if "execution_log" not in st.session_state:
-        st.session_state.execution_log = []
-
-    if "chain_state" not in st.session_state:
-        st.session_state.chain_state = {
-            "active": False,
-            "agents": [],
-            "idx": 0,
-            "current_input": "",
-            "last_output": "",
-            "overrides": {},
-        }
-
-    if "runs" not in st.session_state:
-        st.session_state.runs = 0
-    if "last_run_ts" not in st.session_state:
-        st.session_state.last_run_ts = None
-
-    if "ui_keys" not in st.session_state:
-        st.session_state.ui_keys = {
-            "OPENAI_API_KEY": "",
-            "GEMINI_API_KEY": "",
-            "ANTHROPIC_API_KEY": "",
-            "GROK_API_KEY": "",
-        }
-
-    if "note_text" not in st.session_state:
-        st.session_state.note_text = ""
-    if "note_markdown" not in st.session_state:
-        st.session_state.note_markdown = ""
-    if "note_last_ai" not in st.session_state:
-        st.session_state.note_last_ai = ""
-
-    # Distribution tab state
-    if "dist_raw_text" not in st.session_state:
-        st.session_state.dist_raw_text = ""
-    if "dist_dataset_name" not in st.session_state:
-        st.session_state.dist_dataset_name = "default_distribution_dataset"
-    if "dist_df" not in st.session_state:
-        st.session_state.dist_df = None  # standardized df
-    if "dist_prompt_by_dataset" not in st.session_state:
-        st.session_state.dist_prompt_by_dataset = {}  # dataset_name -> prompt string
-    if "dist_summary_md" not in st.session_state:
-        st.session_state.dist_summary_md = ""
-
-
-ss_init()
-t = I18N[st.session_state.lang]
-st.markdown(_css(st.session_state.theme_mode, st.session_state.painter_style), unsafe_allow_html=True)
-
-
-# =========================
-# Utilities
-# =========================
-AGENTS_YAML_PATH = "agents.yaml"
-
-MODEL_CHOICES = [
-    # OpenAI
+SUPPORTED_MODELS = [
     "gpt-4o-mini",
     "gpt-4.1-mini",
-
-    # Gemini
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
     "gemini-3-flash-preview",
-
-    # Anthropic
-    "claude-3-5-sonnet-latest",
-    "claude-3-5-haiku-latest",
-    "claude-3-opus-latest",
-
-    # Grok
+    "gemini-2.5-flash-lite",
+    "anthropic:claude-3-5-sonnet-latest",
+    "anthropic:claude-3-5-haiku-latest",
     "grok-4-fast-reasoning",
     "grok-3-mini",
 ]
 
-DIST_SUMMARY_MODELS = ["gemini-2.5-flash", "gemini-3-flash-preview", "gpt-4o-mini"]
+PROVIDERS = ["openai", "gemini", "anthropic", "grok"]
 
-STANDARD_COLS = [
-    "SupplierID", "Deliverdate", "CustomerID", "LicenseNo", "Category",
-    "UDID", "DeviceNAME", "LotNO", "SerNo", "Model", "Number"
-]
-
-SYNONYMS = {
-    "supplierid": "SupplierID", "supplier_id": "SupplierID", "supplier": "SupplierID", "vendor": "SupplierID",
-    "deliverdate": "Deliverdate", "deliverydate": "Deliverdate", "deliver_date": "Deliverdate", "date": "Deliverdate",
-    "customerid": "CustomerID", "customer_id": "CustomerID", "customer": "CustomerID", "client": "CustomerID",
-    "licenseno": "LicenseNo", "license_no": "LicenseNo", "license": "LicenseNo", "licence": "LicenseNo",
-    "category": "Category", "productcategory": "Category", "class": "Category",
-    "udid": "UDID", "udi": "UDID", "gtin": "UDID",
-    "devicename": "DeviceNAME", "device_name": "DeviceNAME", "device": "DeviceNAME", "productname": "DeviceNAME",
-    "lotno": "LotNO", "lot_no": "LotNO", "lot": "LotNO", "batch": "LotNO", "batchno": "LotNO",
-    "serno": "SerNo", "serialno": "SerNo", "serial_no": "SerNo", "serial": "SerNo",
-    "model": "Model", "modelno": "Model", "model_no": "Model",
-    "number": "Number", "qty": "Number", "quantity": "Number", "count": "Number", "units": "Number",
+ENV_KEY_MAP = {
+    "openai": ["OPENAI_API_KEY"],
+    "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    "anthropic": ["ANTHROPIC_API_KEY"],
+    "grok": ["GROK_API_KEY", "XAI_API_KEY"],
 }
 
-def now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+REQUIRED_COLUMNS = [
+    "SupplierID",
+    "Deliverdate",
+    "CustomerID",
+    "LicenseNo",
+    "Category",
+    "UDID",
+    "DeviceNAME",
+    "LotNO",
+    "SerNo",
+    "Model",
+    "Number",
+]
 
-def estimate_tokens(text: str) -> int:
-    if not text:
-        return 0
-    return max(1, int(len(text) / 4))
+# -----------------------------------
+# Localization (EN / zh-TW)
+# -----------------------------------
 
-def escape_html(s: str) -> str:
-    if s is None:
-        return ""
+T = {
+    "en": {
+        "nav_command_center": "Command Center",
+        "nav_distribution": "Distribution Lab",
+        "nav_note_keeper": "AI Note Keeper",
+        "nav_agents": "Agents Studio",
+        "nav_settings": "Settings & Keys",
+        "global_search": "Global search (context-aware)",
+        "theme": "Painter Style",
+        "jackpot": "Jackpot",
+        "mode": "Mode",
+        "light": "Light",
+        "dark": "Dark",
+        "language": "Language",
+        "data_source": "Dataset Source",
+        "use_default": "Use default dataset",
+        "paste_or_upload": "Paste / Upload new dataset",
+        "paste_here": "Paste CSV/JSON/Text here",
+        "upload_file": "Upload file (CSV / JSON / TXT)",
+        "load_dataset": "Load dataset",
+        "clear_dataset": "Clear dataset",
+        "dataset_preview": "Dataset preview",
+        "data_quality": "Data quality",
+        "missing_cols": "Missing columns",
+        "parse_warnings": "Parsing warnings",
+        "rows": "Rows",
+        "unique_suppliers": "Unique Suppliers",
+        "unique_customers": "Unique Customers",
+        "total_units": "Total Units",
+        "filters": "Filters",
+        "date_range": "Date range",
+        "qty_range": "Quantity range",
+        "supplier_filter": "SupplierID",
+        "customer_filter": "CustomerID",
+        "license_filter": "LicenseNo",
+        "model_filter": "Model",
+        "top_n": "Top N",
+        "reset_filters": "Reset filters",
+        "wow_graphs": "WOW Graphs",
+        "sankey_title": "Supply-Chain Symphony Sankey",
+        "pulse_title": "Temporal Pulse + Anomaly Beacons",
+        "mosaic_title": "Customer–Model Mosaic Heatmap",
+        "classic_charts": "Classic Charts",
+        "timeline": "Delivery Timeline",
+        "model_dist": "Model Distribution",
+        "top_customers": "Top Customers",
+        "license_usage": "License Usage",
+        "agents_yaml": "agents.yaml",
+        "skill_md": "SKILL.md",
+        "upload_agents_yaml": "Upload agents.yaml",
+        "paste_agents_yaml": "Paste agents.yaml",
+        "standardize": "Standardize",
+        "import_yaml": "Import standardized YAML",
+        "download_yaml": "Download standardized YAML",
+        "yaml_status": "YAML status",
+        "settings": "Provider keys",
+        "configured_env": "Configured (env)",
+        "configured_session": "Configured (session)",
+        "missing": "Missing",
+        "never_shown": "Never shown",
+        "enter_key": "Enter API key (stored only in session)",
+        "save_key": "Save key to session",
+        "clear_key": "Clear session key",
+        "note_input": "Paste notes (text or markdown)",
+        "note_prompt": "Prompt (editable)",
+        "note_model": "Model",
+        "note_maxtokens": "Max tokens",
+        "transform": "Transform to organized markdown",
+        "ai_magics": "AI Magics",
+        "ai_keywords": "AI Keywords (user-colored)",
+        "keywords_list": "Keywords (comma-separated)",
+        "keyword_color": "Keyword color",
+        "apply_keywords": "Apply keyword highlighting",
+        "output": "Output",
+        "status_strip": "Status Strip",
+        "agent_pipeline": "Agent Pipeline",
+        "not_configured_ai": "No provider key configured. AI features will run in offline mode.",
+        "offline_mode": "Offline mode",
+        "online_mode": "Online mode",
+    },
+    "zh-TW": {
+        "nav_command_center": "指揮中心",
+        "nav_distribution": "配送分析實驗室",
+        "nav_note_keeper": "AI 筆記整理",
+        "nav_agents": "代理人工作室",
+        "nav_settings": "設定與金鑰",
+        "global_search": "全域搜尋（依情境）",
+        "theme": "畫家風格",
+        "jackpot": "轉盤",
+        "mode": "模式",
+        "light": "亮色",
+        "dark": "暗色",
+        "language": "語言",
+        "data_source": "資料來源",
+        "use_default": "使用預設資料集",
+        "paste_or_upload": "貼上／上傳新資料集",
+        "paste_here": "在此貼上 CSV/JSON/文字",
+        "upload_file": "上傳檔案（CSV / JSON / TXT）",
+        "load_dataset": "載入資料集",
+        "clear_dataset": "清除資料集",
+        "dataset_preview": "資料預覽",
+        "data_quality": "資料品質",
+        "missing_cols": "缺少欄位",
+        "parse_warnings": "解析警告",
+        "rows": "筆數",
+        "unique_suppliers": "供應商數",
+        "unique_customers": "客戶數",
+        "total_units": "總數量",
+        "filters": "篩選條件",
+        "date_range": "日期範圍",
+        "qty_range": "數量範圍",
+        "supplier_filter": "SupplierID",
+        "customer_filter": "CustomerID",
+        "license_filter": "LicenseNo",
+        "model_filter": "Model",
+        "top_n": "前 N 名",
+        "reset_filters": "重設篩選",
+        "wow_graphs": "WOW 圖表",
+        "sankey_title": "供應鏈交響 Sankey",
+        "pulse_title": "時間脈動＋異常燈塔",
+        "mosaic_title": "客戶–型號 馬賽克熱圖",
+        "classic_charts": "經典圖表",
+        "timeline": "配送時間趨勢",
+        "model_dist": "型號分佈",
+        "top_customers": "客戶排行",
+        "license_usage": "許可證使用量",
+        "agents_yaml": "agents.yaml",
+        "skill_md": "SKILL.md",
+        "upload_agents_yaml": "上傳 agents.yaml",
+        "paste_agents_yaml": "貼上 agents.yaml",
+        "standardize": "標準化",
+        "import_yaml": "匯入標準化 YAML",
+        "download_yaml": "下載標準化 YAML",
+        "yaml_status": "YAML 狀態",
+        "settings": "供應商金鑰",
+        "configured_env": "已設定（環境）",
+        "configured_session": "已設定（本次）",
+        "missing": "未設定",
+        "never_shown": "永不顯示",
+        "enter_key": "輸入 API Key（僅存於本次 Session）",
+        "save_key": "儲存到 Session",
+        "clear_key": "清除 Session Key",
+        "note_input": "貼上筆記（文字或 Markdown）",
+        "note_prompt": "提示詞（可修改）",
+        "note_model": "模型",
+        "note_maxtokens": "最大 tokens",
+        "transform": "轉為結構化 Markdown",
+        "ai_magics": "AI 魔法",
+        "ai_keywords": "AI 關鍵字（自選顏色）",
+        "keywords_list": "關鍵字（逗號分隔）",
+        "keyword_color": "關鍵字顏色",
+        "apply_keywords": "套用關鍵字上色",
+        "output": "輸出",
+        "status_strip": "狀態列",
+        "agent_pipeline": "代理流程",
+        "not_configured_ai": "未設定任何供應商金鑰。AI 功能將以離線模式執行。",
+        "offline_mode": "離線模式",
+        "online_mode": "線上模式",
+    },
+}
+
+
+# -----------------------------------
+# Painter themes (20 styles, light/dark variants)
+# -----------------------------------
+
+def painter_themes() -> Dict[str, Dict[str, Dict[str, str]]]:
+    # Token sets: keep compact but distinct. (You can tune palettes later without changing app logic.)
+    return {
+        "Da Vinci": {
+            "light": {"bg1": "#f6f1e6", "bg2": "#d8c7a3", "glass": "rgba(255,255,255,0.55)", "border": "rgba(60,40,20,0.18)", "text": "#1f1a14", "muted": "#4a4036", "accent": "#8a5a2b"},
+            "dark":  {"bg1": "#1a1410", "bg2": "#3b2a1c", "glass": "rgba(20,16,12,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#f3eadc", "muted": "#c8bba7", "accent": "#d0a35a"},
+        },
+        "Monet": {
+            "light": {"bg1": "#f0fbff", "bg2": "#b7e3ff", "glass": "rgba(255,255,255,0.55)", "border": "rgba(40,90,120,0.16)", "text": "#0e2230", "muted": "#2c556b", "accent": "#2aa6c7"},
+            "dark":  {"bg1": "#071b24", "bg2": "#103548", "glass": "rgba(9,24,32,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#e6f7ff", "muted": "#b8d7e6", "accent": "#58d1e6"},
+        },
+        "Van Gogh": {
+            "light": {"bg1": "#fff6da", "bg2": "#ffd36e", "glass": "rgba(255,255,255,0.55)", "border": "rgba(40,40,80,0.16)", "text": "#1c1c2c", "muted": "#3b3b59", "accent": "#1f4aa8"},
+            "dark":  {"bg1": "#0c1025", "bg2": "#1c2350", "glass": "rgba(10,14,34,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#fff2cc", "muted": "#f2d98a", "accent": "#ffd36e"},
+        },
+        "Picasso": {
+            "light": {"bg1": "#fff1f1", "bg2": "#ffd5b8", "glass": "rgba(255,255,255,0.55)", "border": "rgba(80,40,40,0.14)", "text": "#2a1616", "muted": "#5a2f2f", "accent": "#e23d28"},
+            "dark":  {"bg1": "#1d0f12", "bg2": "#3b1a22", "glass": "rgba(18,9,11,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffe9dd", "muted": "#f6c5a6", "accent": "#ff6a3d"},
+        },
+        "Frida Kahlo": {
+            "light": {"bg1": "#f6fff5", "bg2": "#c7f5c8", "glass": "rgba(255,255,255,0.55)", "border": "rgba(20,70,30,0.15)", "text": "#0f2414", "muted": "#2f5a3a", "accent": "#e03a5e"},
+            "dark":  {"bg1": "#07180b", "bg2": "#10361a", "glass": "rgba(7,18,9,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#eaffea", "muted": "#bfe6c3", "accent": "#ff4d73"},
+        },
+        "Hokusai": {
+            "light": {"bg1": "#f4fbff", "bg2": "#c7e6ff", "glass": "rgba(255,255,255,0.55)", "border": "rgba(20,60,90,0.15)", "text": "#0c1f2e", "muted": "#2b536e", "accent": "#1b6fa8"},
+            "dark":  {"bg1": "#061724", "bg2": "#0b2c44", "glass": "rgba(7,18,28,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#e7f5ff", "muted": "#b5d7ef", "accent": "#44b0ff"},
+        },
+        "Klimt": {
+            "light": {"bg1": "#fff9e6", "bg2": "#f6d27a", "glass": "rgba(255,255,255,0.55)", "border": "rgba(120,80,10,0.18)", "text": "#2b200a", "muted": "#6b4f15", "accent": "#b48a00"},
+            "dark":  {"bg1": "#1b1406", "bg2": "#3a2b0b", "glass": "rgba(22,16,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#fff3cf", "muted": "#f0d18a", "accent": "#f6d27a"},
+        },
+        "Kandinsky": {
+            "light": {"bg1": "#f5f6ff", "bg2": "#d6d9ff", "glass": "rgba(255,255,255,0.55)", "border": "rgba(40,40,80,0.14)", "text": "#161635", "muted": "#3a3a66", "accent": "#3f5efb"},
+            "dark":  {"bg1": "#0b0b20", "bg2": "#1a1a44", "glass": "rgba(10,10,24,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#eef0ff", "muted": "#c3c7ff", "accent": "#7a8cff"},
+        },
+        "Dalí": {
+            "light": {"bg1": "#fff7f0", "bg2": "#ffd2a8", "glass": "rgba(255,255,255,0.55)", "border": "rgba(90,50,20,0.14)", "text": "#2a1b10", "muted": "#6b4024", "accent": "#7b2cbf"},
+            "dark":  {"bg1": "#140a18", "bg2": "#2b1236", "glass": "rgba(16,8,20,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffeede", "muted": "#f3c8a6", "accent": "#c77dff"},
+        },
+        "Magritte": {
+            "light": {"bg1": "#f2f7ff", "bg2": "#c6d7ff", "glass": "rgba(255,255,255,0.55)", "border": "rgba(30,50,90,0.14)", "text": "#0e1c35", "muted": "#314c7a", "accent": "#2f6fed"},
+            "dark":  {"bg1": "#071224", "bg2": "#11254a", "glass": "rgba(8,14,26,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#e8f0ff", "muted": "#b8caff", "accent": "#73a6ff"},
+        },
+        "Matisse": {
+            "light": {"bg1": "#fff3f7", "bg2": "#ffc1d8", "glass": "rgba(255,255,255,0.55)", "border": "rgba(90,20,40,0.14)", "text": "#2b0f18", "muted": "#6b2a3e", "accent": "#ff3b8d"},
+            "dark":  {"bg1": "#1a0710", "bg2": "#3b0e22", "glass": "rgba(20,7,12,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffe2ee", "muted": "#ffb6d3", "accent": "#ff5ca3"},
+        },
+        "Rothko": {
+            "light": {"bg1": "#fff5ef", "bg2": "#f6bfa5", "glass": "rgba(255,255,255,0.55)", "border": "rgba(120,40,20,0.14)", "text": "#2b120a", "muted": "#6b2f1f", "accent": "#b91c1c"},
+            "dark":  {"bg1": "#1a0505", "bg2": "#3a0c0c", "glass": "rgba(18,6,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffe9dd", "muted": "#f6c5a6", "accent": "#ef4444"},
+        },
+        "Hopper": {
+            "light": {"bg1": "#f7fbff", "bg2": "#d7e7f6", "glass": "rgba(255,255,255,0.55)", "border": "rgba(30,50,60,0.14)", "text": "#0f1b22", "muted": "#395463", "accent": "#0ea5e9"},
+            "dark":  {"bg1": "#07121a", "bg2": "#0f2433", "glass": "rgba(7,14,20,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#eaf6ff", "muted": "#bfd8e6", "accent": "#38bdf8"},
+        },
+        "O’Keeffe": {
+            "light": {"bg1": "#fff6f1", "bg2": "#ffd1c2", "glass": "rgba(255,255,255,0.55)", "border": "rgba(90,40,20,0.14)", "text": "#2a1410", "muted": "#6b3a2c", "accent": "#ea580c"},
+            "dark":  {"bg1": "#140a06", "bg2": "#2b120b", "glass": "rgba(16,8,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffece4", "muted": "#ffd1c2", "accent": "#fb923c"},
+        },
+        "Rembrandt": {
+            "light": {"bg1": "#fff6e8", "bg2": "#e7c08a", "glass": "rgba(255,255,255,0.55)", "border": "rgba(70,40,10,0.18)", "text": "#1f1408", "muted": "#5a3d18", "accent": "#7c3f00"},
+            "dark":  {"bg1": "#120b05", "bg2": "#2b1a0a", "glass": "rgba(16,10,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#fff1d9", "muted": "#e7c08a", "accent": "#f59e0b"},
+        },
+        "Caravaggio": {
+            "light": {"bg1": "#f7f2ef", "bg2": "#d9c7bb", "glass": "rgba(255,255,255,0.55)", "border": "rgba(30,20,20,0.14)", "text": "#1f1616", "muted": "#4a3b3b", "accent": "#111827"},
+            "dark":  {"bg1": "#070707", "bg2": "#161616", "glass": "rgba(10,10,10,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#f7f2ef", "muted": "#d9c7bb", "accent": "#e5e7eb"},
+        },
+        "Basquiat": {
+            "light": {"bg1": "#fff8e7", "bg2": "#ffe08a", "glass": "rgba(255,255,255,0.55)", "border": "rgba(60,30,0,0.14)", "text": "#251300", "muted": "#6b3d14", "accent": "#16a34a"},
+            "dark":  {"bg1": "#0f0b06", "bg2": "#22180c", "glass": "rgba(12,8,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#fff2c6", "muted": "#ffd36e", "accent": "#22c55e"},
+        },
+        "Lichtenstein": {
+            "light": {"bg1": "#f1f7ff", "bg2": "#cde1ff", "glass": "rgba(255,255,255,0.55)", "border": "rgba(10,30,80,0.14)", "text": "#0b1a3d", "muted": "#294a8a", "accent": "#ef4444"},
+            "dark":  {"bg1": "#07112a", "bg2": "#102457", "glass": "rgba(7,12,30,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#eaf0ff", "muted": "#cde1ff", "accent": "#fb7185"},
+        },
+        "Turner": {
+            "light": {"bg1": "#fff7ed", "bg2": "#ffd7b5", "glass": "rgba(255,255,255,0.55)", "border": "rgba(90,50,20,0.12)", "text": "#2a1b10", "muted": "#6b4024", "accent": "#f97316"},
+            "dark":  {"bg1": "#120b06", "bg2": "#2a160c", "glass": "rgba(16,10,6,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffedd5", "muted": "#ffd7b5", "accent": "#fb923c"},
+        },
+        "Yayoi Kusama": {
+            "light": {"bg1": "#fff5f7", "bg2": "#ffd1dc", "glass": "rgba(255,255,255,0.55)", "border": "rgba(80,20,40,0.14)", "text": "#2b0f18", "muted": "#6b2a3e", "accent": "#dc2626"},
+            "dark":  {"bg1": "#14070c", "bg2": "#2b0f18", "glass": "rgba(16,7,10,0.55)", "border": "rgba(255,255,255,0.12)", "text": "#ffe2ee", "muted": "#ffd1dc", "accent": "#ef4444"},
+        },
+    }
+
+
+KEYWORD_DEFAULT_COLOR = "#FF7F50"  # coral
+
+
+# -----------------------------------
+# Utilities
+# -----------------------------------
+
+def _t(lang: str, key: str) -> str:
+    lang = lang if lang in T else "en"
+    return T[lang].get(key, key)
+
+
+def normalize_smart_quotes(text: str) -> str:
     return (
-        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        .replace('"', "&quot;").replace("'", "&#039;")
+        text.replace("“", '"')
+        .replace("”", '"')
+        .replace("‘", "'")
+        .replace("’", "'")
+        .replace("，", ",")
     )
 
-def highlight_keywords_html(text: str, keywords: List[str], color: str = "#FF6B6B") -> str:
-    if not text or not keywords:
-        return f"<div>{escape_html(text)}</div>"
-    kws = [k.strip() for k in keywords if k and k.strip()]
-    if not kws:
-        return f"<div>{escape_html(text)}</div>"
-    pattern = re.compile("(" + "|".join(re.escape(k) for k in sorted(set(kws), key=len, reverse=True)) + ")", re.IGNORECASE)
 
-    def repl(m):
-        kw = escape_html(m.group(0))
-        return f'<span class="kw" style="background:{color}; color:#111; font-weight:700;">{kw}</span>'
-
-    out, last = [], 0
-    for m in pattern.finditer(text):
-        out.append(escape_html(text[last:m.start()]))
-        out.append(repl(m))
-        last = m.end()
-    out.append(escape_html(text[last:]))
-    return "<div style='line-height:1.65;'>" + "".join(out).replace("\n", "<br/>") + "</div>"
-
-def infer_provider(model: str) -> str:
-    m = (model or "").lower()
-    if m.startswith("gpt-"):
-        return "openai"
-    if m.startswith("gemini-"):
-        return "gemini"
-    if m.startswith("claude-"):
-        return "anthropic"
-    if m.startswith("grok-"):
-        return "grok"
-    return "openai"
-
-def get_api_key(env_var: str) -> Tuple[Optional[str], bool]:
-    if os.environ.get(env_var):
-        return os.environ.get(env_var), True
-    v = st.session_state.ui_keys.get(env_var, "")
-    return (v if v else None), False
-
-def call_llm(
-    provider: str,
-    model: str,
-    api_key: str,
-    system_prompt: str,
-    user_prompt: str,
-    max_tokens: int = 12000,
-    temperature: float = 0.2,
-) -> Tuple[str, Dict[str, Any]]:
-    provider = (provider or infer_provider(model)).lower().strip()
-    meta = {"provider": provider, "model": model, "max_tokens": max_tokens, "temperature": temperature}
-
-    if provider == "openai":
-        try:
-            from openai import OpenAI  # type: ignore
-            client = OpenAI(api_key=api_key)
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt or ""},
-                    {"role": "user", "content": user_prompt or ""},
-                ],
-                temperature=float(temperature),
-                max_tokens=int(max_tokens),
-            )
-            text = resp.choices[0].message.content or ""
-            usage = getattr(resp, "usage", None)
-            if usage:
-                meta["usage"] = dict(usage)
-            return text, meta
-        except Exception as e:
-            return f"(OpenAI call failed: {e})", meta
-
-    if provider == "gemini":
-        try:
-            import google.generativeai as genai  # type: ignore
-            genai.configure(api_key=api_key)
-            try:
-                model_obj = genai.GenerativeModel(model_name=model, system_instruction=system_prompt or "")
-            except Exception:
-                model_obj = genai.GenerativeModel(model_name=model)
-            resp = model_obj.generate_content(
-                user_prompt or "",
-                generation_config={"temperature": float(temperature), "max_output_tokens": int(max_tokens)},
-            )
-            text = getattr(resp, "text", None) or ""
-            return text, meta
-        except Exception as e:
-            return f"(Gemini call failed: {e})", meta
-
-    if provider == "anthropic":
-        try:
-            from anthropic import Anthropic  # type: ignore
-            client = Anthropic(api_key=api_key)
-            resp = client.messages.create(
-                model=model,
-                max_tokens=int(max_tokens),
-                temperature=float(temperature),
-                system=system_prompt or "",
-                messages=[{"role": "user", "content": user_prompt or ""}],
-            )
-            blocks = getattr(resp, "content", []) or []
-            text_parts = []
-            for b in blocks:
-                tx = getattr(b, "text", None)
-                if tx:
-                    text_parts.append(tx)
-            return "\n".join(text_parts).strip(), meta
-        except Exception as e:
-            return f"(Anthropic call failed: {e})", meta
-
-    if provider == "grok":
-        try:
-            from openai import OpenAI  # type: ignore
-            client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt or ""},
-                    {"role": "user", "content": user_prompt or ""},
-                ],
-                temperature=float(temperature),
-                max_tokens=int(max_tokens),
-            )
-            text = resp.choices[0].message.content or ""
-            usage = getattr(resp, "usage", None)
-            if usage:
-                meta["usage"] = dict(usage)
-            return text, meta
-        except Exception as e:
-            return f"(Grok call failed: {e})", meta
-
-    return f"(Unknown provider '{provider}'.)", meta
-
-def render_template(tpl: str, variables: Dict[str, Any]) -> str:
-    tpl = tpl or "{input}"
+def try_read_text_file(uploaded_file) -> str:
+    if uploaded_file is None:
+        return ""
+    raw = uploaded_file.read()
     try:
-        return tpl.format(**variables)
+        return raw.decode("utf-8")
     except Exception:
-        return tpl
+        try:
+            return raw.decode("utf-8-sig")
+        except Exception:
+            return raw.decode(errors="ignore")
 
-def run_agent(
-    agent_conf: Dict[str, Any],
-    input_text: str,
-    overrides: Dict[str, Any],
-    keys: Dict[str, Optional[str]],
-) -> Tuple[str, Dict[str, Any]]:
-    name = agent_conf.get("name", "Unnamed Agent")
-    base_model = agent_conf.get("model", "gpt-4o-mini")
-    base_provider = agent_conf.get("provider", infer_provider(base_model))
-    base_prompt = agent_conf.get("prompt", "{input}")
-    base_system = agent_conf.get("system_prompt", "You are a helpful assistant.")
-    base_temp = float(agent_conf.get("temperature", 0.2))
-    base_max = int(agent_conf.get("max_tokens", 12000))
 
-    provider = overrides.get("provider", base_provider)
-    model = overrides.get("model", base_model)
-    prompt_tpl = overrides.get("prompt", base_prompt)
-    system_prompt = overrides.get("system_prompt", base_system)
-    temperature = float(overrides.get("temperature", base_temp))
-    max_tokens = int(overrides.get("max_tokens", base_max))
+def parse_dataset_from_text(text: str) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Accepts CSV/JSON/plain text.
+    Returns (df, warnings).
+    """
+    warnings: List[str] = []
+    text = (text or "").strip()
+    if not text:
+        return pd.DataFrame(), ["Empty input"]
 
-    provider = (provider or infer_provider(model)).lower().strip()
+    text = normalize_smart_quotes(text)
 
-    api_key = None
-    if provider == "openai":
-        api_key = keys.get("openai")
-    elif provider == "gemini":
-        api_key = keys.get("gemini")
-    elif provider == "anthropic":
-        api_key = keys.get("anthropic")
-    elif provider == "grok":
-        api_key = keys.get("grok")
+    # Try JSON first
+    if text.startswith("{") or text.startswith("["):
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict) and "data" in obj and isinstance(obj["data"], list):
+                obj = obj["data"]
+            if isinstance(obj, dict):
+                # single record
+                obj = [obj]
+            df = pd.DataFrame(obj)
+            return df, warnings
+        except Exception as e:
+            warnings.append(f"JSON parse failed, will try CSV. Reason: {e}")
 
-    if not api_key:
-        return f"(Missing API key for provider '{provider}' while running {name}.)", {
-            "agent": name, "provider": provider, "model": model, "error": "missing_api_key"
-        }
+    # CSV-ish: accept headerless by mapping to REQUIRED_COLUMNS if column count matches
+    try:
+        # Try pandas read_csv with python engine (more flexible with quotes)
+        buf = io.StringIO(text)
+        df = pd.read_csv(buf, engine="python")
+        if df.shape[1] == len(REQUIRED_COLUMNS) and list(df.columns) != REQUIRED_COLUMNS:
+            # If first row is actually data, and pandas guessed headers, try re-read without header.
+            # But only do this if obvious header mismatch.
+            pass
+        return df, warnings
+    except Exception as e:
+        warnings.append(f"CSV parse failed: {e}")
 
-    user_prompt = render_template(prompt_tpl, {"input": input_text})
+    return pd.DataFrame(), warnings + ["Unable to parse as JSON or CSV"]
 
-    started = time.time()
-    text, meta = call_llm(
-        provider=provider,
-        model=model,
-        api_key=api_key,
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    meta.update({"agent": name, "elapsed_s": round(time.time() - started, 3)})
-    return text, meta
 
-def load_agents_config() -> Dict[str, Any]:
-    if not os.path.exists(AGENTS_YAML_PATH):
-        return {"agents": []}
-    with open(AGENTS_YAML_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {"agents": []}
+def load_default_dataset(path: str = DEFAULT_DATASET_PATH) -> Tuple[pd.DataFrame, List[str]]:
+    warnings: List[str] = []
+    if not os.path.exists(path):
+        return pd.DataFrame(), [f"Default dataset not found: {path}"]
 
-def save_agents_config(cfg: Dict[str, Any]) -> None:
-    with open(AGENTS_YAML_PATH, "w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        df, w = parse_dataset_from_text(content)
+        warnings.extend(w)
+        return df, warnings
+    except Exception as e:
+        return pd.DataFrame(), [f"Failed to load default dataset: {e}"]
 
-if st.session_state.agents_config is None:
-    st.session_state.agents_config = load_agents_config()
 
-def parse_pdf_text(pdf_bytes: bytes, pages_spec: str = "1") -> str:
-    pages_spec = (pages_spec or "").strip() or "1"
-    page_numbers = set()
+def standardize_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Enforce canonical column names and types. Add missing cols as empty.
+    """
+    warnings: List[str] = []
+    if df is None or df.empty:
+        return pd.DataFrame(columns=REQUIRED_COLUMNS), ["Empty dataset"]
 
-    def add_range(a, b):
-        for i in range(a, b + 1):
-            page_numbers.add(i)
+    # Strip/normalize column names
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
 
-    for part in pages_spec.split(","):
-        part = part.strip()
-        if not part:
+    # Attempt best-effort mapping if columns resemble required ones
+    # (minimal heuristics; extend as needed)
+    col_map = {}
+    lower = {c.lower(): c for c in df.columns}
+
+    for req in REQUIRED_COLUMNS:
+        if req in df.columns:
             continue
-        if "-" in part:
-            a, b = part.split("-", 1)
-            try:
-                add_range(int(a), int(b))
-            except Exception:
-                pass
-        else:
-            try:
-                page_numbers.add(int(part))
-            except Exception:
-                pass
-    if not page_numbers:
-        page_numbers = {1}
+        if req.lower() in lower:
+            col_map[lower[req.lower()]] = req
 
+    if col_map:
+        df = df.rename(columns=col_map)
+
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    for c in missing:
+        df[c] = ""  # empty placeholder
+
+    # Keep only known + allow extras (extras retained but placed after required)
+    extras = [c for c in df.columns if c not in REQUIRED_COLUMNS]
+    df = df[REQUIRED_COLUMNS + extras]
+
+    # Type conversions
+    # Number -> numeric
     try:
-        from pypdf import PdfReader  # type: ignore
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        texts = []
-        for p in sorted(page_numbers):
-            idx = p - 1
-            if 0 <= idx < len(reader.pages):
-                texts.append(reader.pages[idx].extract_text() or "")
-        return "\n\n".join(texts).strip() or "(No extractable text found in PDF.)"
+        df["Number"] = pd.to_numeric(df["Number"], errors="coerce").fillna(0).astype(float)
     except Exception:
+        warnings.append("Failed to coerce Number to numeric; set invalid to 0.")
+        df["Number"] = 0.0
+
+    # Deliverdate -> datetime (support YYYYMMDD)
+    def _parse_date(x: Any) -> Optional[pd.Timestamp]:
+        if pd.isna(x):
+            return None
+        s = str(x).strip()
+        if not s:
+            return None
+        s = re.sub(r"[^\d\-\/]", "", s)
         try:
-            from PyPDF2 import PdfReader  # type: ignore
-            reader = PdfReader(io.BytesIO(pdf_bytes))
-            texts = []
-            for p in sorted(page_numbers):
-                idx = p - 1
-                if 0 <= idx < len(reader.pages):
-                    texts.append(reader.pages[idx].extract_text() or "")
-            return "\n\n".join(texts).strip() or "(No extractable text found in PDF.)"
-        except Exception as e:
-            return f"(PDF extraction failed: {e})"
-
-def safe_read_uploaded(file) -> Tuple[str, str]:
-    name = file.name
-    mime = file.type or ""
-
-    if mime == "application/pdf" or name.lower().endswith(".pdf"):
-        return name, parse_pdf_text(file.read(), pages_spec="1")
-
-    b = file.read()
-    try:
-        s = b.decode("utf-8")
-    except Exception:
-        s = b.decode("utf-8", errors="ignore")
-    return name, s
-
-
-# =========================
-# Distribution: parsing + standardization
-# =========================
-def load_default_distribution_text() -> str:
-    # A richer default dataset (still small enough for demo)
-    return """SupplierID,Deliverdate,CustomerID,LicenseNo,Category,UDID,DeviceNAME,LotNO,SerNo,Model,Number
-B00079,20251107,C05278,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576331,“波士頓科技”英吉尼心臟節律器,890057,,L111,1
-B00079,20251106,C06030,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576331,“波士頓科技”英吉尼心臟節律器,872177,,L111,1
-B00079,20251106,C00123,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576331,“波士頓科技”英吉尼心臟節律器,889490,,L111,1
-B00079,20251105,C06034,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576331,“波士頓科技”英吉尼心臟節律器,889253,,L111,1
-B00079,20251103,C05363,衛部醫器輸字第029100號,E.3610植入式心律器之脈搏產生器,00802526576461,“波士頓科技”艾科雷心臟節律器,869531,,L311,1
-B00079,20251103,C06034,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576331,“波士頓科技”英吉尼心臟節律器,889230,,L111,1
-B00079,20251103,C05278,衛部醫器輸字第029100號,E.3610植入式心律器之脈搏產生器,00802526576485,“波士頓科技”艾科雷心臟節律器,182310,,L331,1
-B00051,20251030,C02822,衛部醫器輸字第028560號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,08437007606478,“尼奧麥迪克”舒兒莉芙特骨盆懸吊系統,CC250520,19,CPS02,1
-B00079,20251030,C00123,衛部醫器輸字第033951號,E.3610植入式心律器之脈搏產生器,00802526576324,“波士頓科技”英吉尼心臟節律器,915900,,L110,1
-B00051,20251030,C02822,衛部醫器輸字第028560號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,08437007606478,“尼奧麥迪克”舒兒莉芙特骨盆懸吊系統,CC250520,20,CPS02,1
-B00051,20251029,C02082,衛部醫器輸字第028560號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,08437007606478,“尼奧麥迪克”舒兒莉芙特骨盆懸吊系統,CC250326,4,CPS02,1
-B00209,20251028,C03210,衛部醫器輸字第026988號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,07798121803473,“博美敦”凱莉星脫垂修補系統,,00012150,Calistar S,1
-B00051,20251028,C01774,衛部醫器輸字第030820號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,08437007606515,“尼奧麥迪克”蜜普思微創骨盆懸吊系統,MB241203,140,KITMIPS02,1
-B00209,20251028,C03210,衛部醫器輸字第026988號,L.5980經陰道骨盆腔器官脫垂治療用手術網片,07798121803473,“博美敦”凱莉星脫垂修補系統,,00012184,Calistar S,1
-"""
-
-def _normalize_col(c: str) -> str:
-    return re.sub(r"[^a-z0-9_]+", "", (c or "").strip().lower().replace(" ", "_"))
-
-def _coerce_deliverdate_to_datetime(x) -> Optional[pd.Timestamp]:
-    if pd.isna(x):
-        return None
-    s = str(x).strip()
-    if not s:
-        return None
-    # common: YYYYMMDD
-    if re.fullmatch(r"\d{8}", s):
-        try:
-            return pd.to_datetime(s, format="%Y%m%d")
+            if re.fullmatch(r"\d{8}", s):
+                return pd.to_datetime(s, format="%Y%m%d", errors="coerce")
+            return pd.to_datetime(s, errors="coerce")
         except Exception:
             return None
-    # common: YYYY-MM-DD, YYYY/MM/DD
+
     try:
-        return pd.to_datetime(s)
+        df["_Deliverdate_dt"] = df["Deliverdate"].apply(_parse_date)
+        bad = df["_Deliverdate_dt"].isna().sum()
+        if bad > 0:
+            warnings.append(f"Unparseable Deliverdate rows: {bad}")
     except Exception:
-        return None
+        warnings.append("Failed to parse Deliverdate into datetime.")
 
-def parse_dataset_text_to_df(raw: str) -> pd.DataFrame:
-    raw = (raw or "").strip()
-    if not raw:
-        return pd.DataFrame()
-
-    # JSON?
-    if raw.startswith("{") or raw.startswith("["):
+    # Clean strings
+    for c in ["SupplierID", "CustomerID", "LicenseNo", "Category", "UDID", "DeviceNAME", "LotNO", "SerNo", "Model"]:
         try:
-            obj = json.loads(raw)
-            if isinstance(obj, list):
-                return pd.DataFrame(obj)
-            if isinstance(obj, dict):
-                # common envelopes
-                for key in ["data", "records", "items", "rows"]:
-                    if key in obj and isinstance(obj[key], list):
-                        return pd.DataFrame(obj[key])
-                # fallback: dict-of-lists
-                return pd.DataFrame(obj)
+            df[c] = df[c].astype(str).fillna("").map(lambda s: s.strip())
         except Exception:
             pass
 
-    # CSV / TSV fallback
-    # detect delimiter
-    delimiter = ","
-    if "\t" in raw and raw.count("\t") > raw.count(","):
-        delimiter = "\t"
-    try:
-        return pd.read_csv(io.StringIO(raw), delimiter=delimiter)
-    except Exception:
-        # last resort: try pandas default
-        try:
-            return pd.read_csv(io.StringIO(raw))
-        except Exception:
-            return pd.DataFrame({"raw": raw.splitlines()})
+    return df, warnings
 
-def standardize_distribution_df(df: pd.DataFrame) -> pd.DataFrame:
+
+def dataset_quality_report(df: pd.DataFrame, parse_warnings: List[str]) -> Dict[str, Any]:
     if df is None or df.empty:
-        return pd.DataFrame(columns=STANDARD_COLS)
+        return {
+            "rows": 0,
+            "missing_cols": REQUIRED_COLUMNS,
+            "parse_warnings": parse_warnings or ["Empty dataset"],
+            "duplicates": 0,
+            "unparsed_dates": 0,
+            "nonpositive_qty": 0,
+        }
 
-    # Rename columns via synonyms
-    rename_map = {}
-    for c in df.columns:
-        nc = _normalize_col(str(c))
-        if nc in SYNONYMS:
-            rename_map[c] = SYNONYMS[nc]
-        else:
-            # if already close to target
-            for target in STANDARD_COLS:
-                if _normalize_col(target) == nc:
-                    rename_map[c] = target
-                    break
-    df2 = df.rename(columns=rename_map).copy()
+    missing_cols = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    duplicates = int(df.duplicated(subset=REQUIRED_COLUMNS, keep="first").sum()) if all(c in df.columns for c in REQUIRED_COLUMNS) else int(df.duplicated().sum())
+    unparsed_dates = int(df.get("_Deliverdate_dt", pd.Series(dtype="datetime64[ns]")).isna().sum()) if "_Deliverdate_dt" in df.columns else 0
+    nonpositive_qty = int((df["Number"] <= 0).sum()) if "Number" in df.columns else 0
 
-    # Ensure all standard cols exist
-    for col in STANDARD_COLS:
-        if col not in df2.columns:
-            df2[col] = None
-
-    # Keep only standard cols (drop extras but keep them in a "Extras" JSON column for traceability)
-    extras = [c for c in df2.columns if c not in STANDARD_COLS]
-    if extras:
-        df2["_extras"] = df2[extras].to_dict(orient="records")
-    else:
-        df2["_extras"] = [{} for _ in range(len(df2))]
-
-    df2 = df2[STANDARD_COLS + ["_extras"]].copy()
-
-    # Coerce types
-    df2["Deliverdate_dt"] = df2["Deliverdate"].apply(_coerce_deliverdate_to_datetime)
-    # if Deliverdate missing but dt exists, fill string
-    mask = df2["Deliverdate"].isna() & df2["Deliverdate_dt"].notna()
-    df2.loc[mask, "Deliverdate"] = df2.loc[mask, "Deliverdate_dt"].dt.strftime("%Y%m%d")
-
-    # Number: numeric, default 1
-    df2["Number"] = pd.to_numeric(df2["Number"], errors="coerce")
-    df2["Number"] = df2["Number"].fillna(1).astype(int)
-
-    # Standardize string columns
-    for col in ["SupplierID", "CustomerID", "LicenseNo", "Category", "UDID", "DeviceNAME", "LotNO", "SerNo", "Model"]:
-        df2[col] = df2[col].astype(str).replace({"nan": "", "None": ""}).str.strip()
-
-    # Drop rows that are completely empty across key dims (optional)
-    key_cols = ["SupplierID", "CustomerID", "LicenseNo", "Category"]
-    df2 = df2[~(df2[key_cols].replace("", pd.NA).isna().all(axis=1))].reset_index(drop=True)
-
-    return df2
-
-def df_preview_markdown(df: pd.DataFrame, n: int = 20) -> str:
-    if df is None or df.empty:
-        return "_(empty)_"
-    show_cols = STANDARD_COLS
-    return df[show_cols].head(n).to_markdown(index=False)
-
-def build_filter_options(df: pd.DataFrame) -> Dict[str, List[str]]:
-    def uniq(col):
-        if col not in df.columns:
-            return []
-        vals = sorted([v for v in df[col].dropna().astype(str).unique().tolist() if v.strip() != ""])
-        return vals[:2000]
     return {
-        "SupplierID": uniq("SupplierID"),
-        "Category": uniq("Category"),
-        "LicenseNo": uniq("LicenseNo"),
-        "CustomerID": uniq("CustomerID"),
+        "rows": int(len(df)),
+        "missing_cols": missing_cols,
+        "parse_warnings": parse_warnings or [],
+        "duplicates": duplicates,
+        "unparsed_dates": unparsed_dates,
+        "nonpositive_qty": nonpositive_qty,
     }
 
-def apply_filters(
-    df: pd.DataFrame,
-    date_range: Optional[Tuple[pd.Timestamp, pd.Timestamp]],
-    supplier_ids: List[str],
-    categories: List[str],
-    license_nos: List[str],
-    customer_ids: List[str],
-) -> pd.DataFrame:
+
+def apply_theme_css(theme_name: str, mode: str, lang: str) -> None:
+    themes = painter_themes()
+    if theme_name not in themes:
+        theme_name = list(themes.keys())[0]
+    mode = "dark" if mode == "dark" else "light"
+    tok = themes[theme_name][mode]
+
+    # Minimal WOW glass + painter gradient + keyword coral.
+    # Streamlit CSS hooks can change; keep conservative selectors.
+    css = f"""
+    <style>
+      :root {{
+        --rcc-bg1: {tok['bg1']};
+        --rcc-bg2: {tok['bg2']};
+        --rcc-glass: {tok['glass']};
+        --rcc-border: {tok['border']};
+        --rcc-text: {tok['text']};
+        --rcc-muted: {tok['muted']};
+        --rcc-accent: {tok['accent']};
+        --rcc-coral: {KEYWORD_DEFAULT_COLOR};
+      }}
+
+      .stApp {{
+        background: radial-gradient(1200px 600px at 20% 10%, rgba(255,255,255,0.20), transparent 60%),
+                    linear-gradient(135deg, var(--rcc-bg1), var(--rcc-bg2));
+        color: var(--rcc-text);
+      }}
+
+      /* Glass panels */
+      div[data-testid="stVerticalBlockBorderWrapper"],
+      section[data-testid="stSidebar"] > div {{
+        background: var(--rcc-glass) !important;
+        border: 1px solid var(--rcc-border) !important;
+        border-radius: 16px !important;
+        backdrop-filter: blur(14px);
+      }}
+
+      /* Typography */
+      h1, h2, h3, h4, h5, h6, p, li, label, span, div {{
+        color: var(--rcc-text);
+      }}
+      small, .rcc-muted {{
+        color: var(--rcc-muted) !important;
+      }}
+
+      /* Accent buttons */
+      .stButton > button {{
+        border-radius: 12px;
+        border: 1px solid var(--rcc-border);
+      }}
+      .stButton > button[kind="primary"] {{
+        background: var(--rcc-accent) !important;
+        border: 1px solid rgba(0,0,0,0.12) !important;
+      }}
+
+      /* Keyword highlighting */
+      .rcc-keyword {{
+        color: var(--rcc-coral);
+        font-weight: 650;
+      }}
+
+      /* Status chips */
+      .rcc-chip {{
+        display:inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--rcc-border);
+        background: rgba(255,255,255,0.18);
+        margin-right: 8px;
+        font-size: 12px;
+      }}
+
+      /* Make Plotly backgrounds transparent-ish */
+      .js-plotly-plot .plotly .main-svg {{
+        background: transparent !important;
+      }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+
+def mask_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "*" * len(key)
+    return key[:2] + "*" * (len(key) - 6) + key[-4:]
+
+
+def get_env_key(provider: str) -> Optional[str]:
+    for name in ENV_KEY_MAP.get(provider, []):
+        v = os.environ.get(name)
+        if v:
+            return v
+    return None
+
+
+def get_session_key(provider: str) -> Optional[str]:
+    return st.session_state.get("api_keys", {}).get(provider)
+
+
+def provider_status(provider: str) -> Tuple[str, str]:
+    """
+    Returns (status_label, source) where source is 'env'/'session'/'missing'
+    """
+    env = get_env_key(provider)
+    if env:
+        return "configured", "env"
+    ses = get_session_key(provider)
+    if ses:
+        return "configured", "session"
+    return "missing", "missing"
+
+
+def any_provider_configured() -> bool:
+    for p in PROVIDERS:
+        s, src = provider_status(p)
+        if s == "configured":
+            return True
+    return False
+
+
+# -----------------------------------
+# agents.yaml / SKILL.md loading & standardization
+# -----------------------------------
+
+DEFAULT_AGENTS_YAML_FALLBACK = """\
+version: "1.0"
+app:
+  name: "RCC"
+  default_language: "en"
+  default_max_tokens: 12000
+providers:
+  openai: {}
+  gemini: {}
+  anthropic: {}
+  grok: {}
+system_prompt:
+  source: "SKILL.md"
+agents:
+  - id: "dist_summary"
+    name: "Distribution Summary"
+    description: "Summarize distribution data and highlight anomalies."
+    provider: "openai"
+    model: "gpt-4o-mini"
+    max_tokens: 12000
+    input:
+      format: "markdown"
+      source: "dataset"
+    output:
+      format: "markdown"
+    prompt_template: |
+      You are analyzing a medical device distribution dataset.
+      Produce:
+      1) Executive summary
+      2) Top suppliers/customers/models/licenses
+      3) Time anomalies and possible explanations
+      4) Compliance risks and data quality issues
+pipelines:
+  default:
+    - dist_summary
+ui_hints:
+  icon: "dashboard"
+"""
+
+
+DEFAULT_SKILL_MD_FALLBACK = """\
+# RCC SKILL.md (fallback)
+You are a regulatory and distribution analytics assistant.
+
+## Safety & Privacy
+- Never request or reveal API keys or secrets.
+- Treat user data as confidential.
+- Do not fabricate claims; mark assumptions.
+
+## Formatting
+- Prefer structured Markdown with clear headings.
+- When highlighting keywords, keep a dedicated section "Extracted Keywords".
+
+## Language
+- Follow user-selected output language (English or Traditional Chinese) when requested.
+"""
+
+
+def safe_load_text(path: str, fallback: str) -> str:
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception:
+        pass
+    return fallback
+
+
+def detect_provider_from_model(model: str) -> str:
+    m = (model or "").lower().strip()
+    if m.startswith("gpt-") or "openai" in m:
+        return "openai"
+    if m.startswith("gemini-") or "google" in m:
+        return "gemini"
+    if m.startswith("claude") or m.startswith("anthropic:"):
+        return "anthropic"
+    if m.startswith("grok-") or "xai" in m:
+        return "grok"
+    return "openai"
+
+
+def slugify(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or f"agent_{uuid.uuid4().hex[:8]}"
+
+
+def standardize_agents_yaml(raw_yaml: str) -> Tuple[str, List[str]]:
+    """
+    Best-effort transformer from nonstandard YAML to canonical schema.
+    Returns (standardized_yaml_text, warnings).
+    """
+    warnings: List[str] = []
+    if yaml is None:
+        return raw_yaml, ["PyYAML not installed; cannot standardize."]
+
+    try:
+        obj = yaml.safe_load(raw_yaml) if raw_yaml.strip() else None
+    except Exception as e:
+        return raw_yaml, [f"YAML parse error: {e}"]
+
+    if obj is None:
+        return DEFAULT_AGENTS_YAML_FALLBACK, ["Empty YAML; loaded fallback standard template."]
+
+    # If it's a list, assume it's agents list
+    if isinstance(obj, list):
+        warnings.append("Top-level YAML is a list; wrapping into canonical schema under 'agents'.")
+        obj = {"agents": obj}
+
+    # If it has 'steps' but not agents/pipelines
+    if isinstance(obj, dict) and "steps" in obj and "agents" not in obj:
+        warnings.append("Detected 'steps' format; converting to agents + default pipeline.")
+        steps = obj.get("steps", [])
+        agents = []
+        pipeline = []
+        for i, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            name = step.get("name") or step.get("id") or f"Step {i+1}"
+            aid = slugify(step.get("id") or name)
+            model = step.get("model") or step.get("llm") or "gpt-4o-mini"
+            provider = step.get("provider") or detect_provider_from_model(model)
+            prompt = step.get("prompt") or step.get("instruction") or step.get("template") or ""
+            agents.append(
+                {
+                    "id": aid,
+                    "name": name,
+                    "description": step.get("description", ""),
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": int(step.get("max_tokens") or step.get("maxTokens") or 12000),
+                    "input": {"format": "markdown", "source": "previous" if i > 0 else "manual"},
+                    "output": {"format": "markdown"},
+                    "prompt_template": prompt,
+                }
+            )
+            pipeline.append(aid)
+        obj = {
+            "version": "1.0",
+            "app": {"name": "RCC", "default_language": "en", "default_max_tokens": 12000},
+            "providers": {p: {} for p in PROVIDERS},
+            "system_prompt": {"source": "SKILL.md"},
+            "agents": agents,
+            "pipelines": {"default": pipeline},
+        }
+
+    # Ensure canonical wrapper
+    if isinstance(obj, dict):
+        if "version" not in obj:
+            obj["version"] = "1.0"
+            warnings.append("Missing 'version'; defaulted to 1.0.")
+        if "app" not in obj:
+            obj["app"] = {"name": "RCC", "default_language": "en", "default_max_tokens": 12000}
+            warnings.append("Missing 'app'; added defaults.")
+        if "providers" not in obj:
+            obj["providers"] = {p: {} for p in PROVIDERS}
+            warnings.append("Missing 'providers'; added placeholders.")
+        if "system_prompt" not in obj:
+            obj["system_prompt"] = {"source": "SKILL.md"}
+            warnings.append("Missing 'system_prompt'; set source to SKILL.md.")
+        if "agents" not in obj:
+            # Try detect single agent fields
+            maybe_prompt = obj.get("prompt") or obj.get("instruction") or obj.get("template")
+            if maybe_prompt:
+                model = obj.get("model") or "gpt-4o-mini"
+                provider = obj.get("provider") or detect_provider_from_model(model)
+                agent = {
+                    "id": slugify(obj.get("id") or obj.get("name") or "agent"),
+                    "name": obj.get("name") or "Agent",
+                    "description": obj.get("description") or "",
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": int(obj.get("max_tokens") or obj.get("maxTokens") or 12000),
+                    "input": {"format": "markdown", "source": "manual"},
+                    "output": {"format": "markdown"},
+                    "prompt_template": maybe_prompt,
+                }
+                obj["agents"] = [agent]
+                obj.setdefault("pipelines", {"default": [agent["id"]]})
+                warnings.append("No 'agents' list found; converted single-agent YAML into canonical schema.")
+            else:
+                obj["agents"] = []
+                warnings.append("No 'agents' found; created empty 'agents' list.")
+
+        # Normalize agents
+        agents = obj.get("agents", [])
+        if isinstance(agents, dict):
+            warnings.append("'agents' is a dict; wrapping into list.")
+            agents = [agents]
+
+        norm_agents = []
+        seen = set()
+        for a in agents:
+            if not isinstance(a, dict):
+                continue
+            name = a.get("name") or a.get("id") or "Agent"
+            aid = a.get("id") or slugify(name)
+            if aid in seen:
+                aid = f"{aid}_{uuid.uuid4().hex[:6]}"
+                warnings.append(f"Duplicate agent id detected; renamed to {aid}.")
+            seen.add(aid)
+
+            model = a.get("model") or "gpt-4o-mini"
+            provider = a.get("provider") or detect_provider_from_model(model)
+            prompt = a.get("prompt_template") or a.get("prompt") or a.get("instruction") or ""
+
+            max_tokens = a.get("max_tokens") or a.get("maxTokens") or a.get("max_output_tokens") or 12000
+            try:
+                max_tokens = int(max_tokens)
+            except Exception:
+                max_tokens = 12000
+                warnings.append(f"Agent {aid}: invalid max_tokens; defaulted to 12000.")
+
+            input_block = a.get("input") if isinstance(a.get("input"), dict) else {}
+            output_block = a.get("output") if isinstance(a.get("output"), dict) else {}
+
+            norm_agents.append(
+                {
+                    "id": aid,
+                    "name": name,
+                    "description": a.get("description", ""),
+                    "provider": provider,
+                    "model": model,
+                    "max_tokens": max_tokens,
+                    "temperature": a.get("temperature", None),
+                    "input": {
+                        "format": input_block.get("format", "markdown"),
+                        "source": input_block.get("source", "previous"),
+                    },
+                    "output": {"format": output_block.get("format", "markdown")},
+                    "prompt_template": prompt,
+                }
+            )
+
+        obj["agents"] = norm_agents
+
+        # Pipelines
+        if "pipelines" not in obj or not obj["pipelines"]:
+            obj["pipelines"] = {"default": [a["id"] for a in norm_agents]}
+            warnings.append("Missing 'pipelines'; generated default pipeline using agent order.")
+
+    standardized = yaml.safe_dump(obj, sort_keys=False, allow_unicode=True)
+    return standardized, warnings
+
+
+# -----------------------------------
+# Offline AI Note transformation (fallback)
+# -----------------------------------
+
+def extract_keywords_simple(text: str, max_k: int = 12) -> List[str]:
+    """
+    Simple keyword extraction: keep uppercase-ish codes, license strings, and frequent nouns-like tokens.
+    """
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    candidates = []
+    # License-like / UDID-like / codes
+    candidates += re.findall(r"(衛部醫器[^\s,，]{6,}號)", text)
+    candidates += re.findall(r"\b\d{14}\b", text)  # UDID-like
+    candidates += re.findall(r"\b[A-Z]{1,5}\d{2,6}\b", text)  # model-ish codes
+
+    # Token frequency (naive)
+    tokens = re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z]{4,}", text)
+    freq: Dict[str, int] = {}
+    for t in tokens:
+        t = t.strip()
+        if len(t) < 2:
+            continue
+        freq[t] = freq.get(t, 0) + 1
+    top = [k for k, _ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)[: max_k * 2]]
+
+    # Combine, preserve order, unique
+    out = []
+    for k in candidates + top:
+        if k not in out:
+            out.append(k)
+        if len(out) >= max_k:
+            break
+    return out[:max_k]
+
+
+def organize_notes_offline(note_text: str, lang: str) -> str:
+    kws = extract_keywords_simple(note_text, max_k=12)
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    if lang == "zh-TW":
+        md = f"""# 筆記整理（離線模式）
+
+## 摘要
+- 由系統在**離線模式**下整理（未呼叫外部模型）。
+- 請確認重點、責任歸屬與日期是否正確。
+- 產出時間：{now}
+
+## 重點
+- （請人工補充）主要事件／決策／風險
+- （請人工補充）下一步與期限
+
+## 行動項目 / 負責人 / 到期日
+| 行動 | 負責人 | 到期日 |
+|---|---|---|
+| （待補） | （待補） | （待補） |
+
+## 風險與合規影響
+- （待補）可能的合規風險、資料缺口、追蹤需求
+
+## 待釐清問題
+- （待補）哪些資訊缺少證據或需要確認？
+
+## 擷取關鍵字
+{chr(10).join([f"- {k}" for k in kws]) if kws else "- （無）"}
+
+## 原始筆記
+```text
+{note_text.strip()}
+```
+"""
+    else:
+        md = f"""# Note Organizer (Offline Mode)
+
+## Summary
+- Produced in **offline mode** (no external model call).
+- Please verify key points, ownership, and dates.
+- Generated at: {now}
+
+## Key Points
+- (Fill in) Primary events / decisions / risks
+- (Fill in) Next steps and deadlines
+
+## Actions / Owners / Due Dates
+| Action | Owner | Due Date |
+|---|---|---|
+| (TBD) | (TBD) | (TBD) |
+
+## Risks & Compliance Impact
+- (TBD) Potential compliance risks, data gaps, follow-ups
+
+## Open Questions
+- (TBD) What claims lack evidence or require confirmation?
+
+## Extracted Keywords
+{chr(10).join([f"- {k}" for k in kws]) if kws else "- (none)"}
+
+## Original Notes
+```text
+{note_text.strip()}
+```
+"""
+    return md
+
+
+def highlight_keywords_html(md_text: str, keywords: List[str], color: str) -> str:
+    if not md_text or not keywords:
+        return md_text
+
+    # Escape regex special chars in keywords; replace longest first to avoid partial overlap.
+    kws = sorted(set([k for k in keywords if k.strip()]), key=len, reverse=True)
+    out = md_text
+    for k in kws:
+        pattern = re.escape(k)
+        out = re.sub(
+            pattern,
+            lambda m: f"<span class='rcc-keyword' style='color:{color};'>{m.group(0)}</span>",
+            out,
+        )
+    return out
+
+
+# -----------------------------------
+# Distribution analytics
+# -----------------------------------
+
+def filter_df(df: pd.DataFrame,
+              suppliers: List[str],
+              customers: List[str],
+              licenses: List[str],
+              models: List[str],
+              date_range: Optional[Tuple[pd.Timestamp, pd.Timestamp]],
+              qty_range: Optional[Tuple[float, float]]) -> pd.DataFrame:
     if df is None or df.empty:
         return df
 
-    out = df.copy()
-
-    # Date filter (Deliverdate_dt)
-    if "Deliverdate_dt" in out.columns and out["Deliverdate_dt"].notna().any() and date_range:
+    dff = df.copy()
+    if suppliers:
+        dff = dff[dff["SupplierID"].isin(suppliers)]
+    if customers:
+        dff = dff[dff["CustomerID"].isin(customers)]
+    if licenses:
+        dff = dff[dff["LicenseNo"].isin(licenses)]
+    if models:
+        dff = dff[dff["Model"].isin(models)]
+    if date_range and "_Deliverdate_dt" in dff.columns:
         start, end = date_range
-        out = out[(out["Deliverdate_dt"] >= start) & (out["Deliverdate_dt"] <= end)]
+        if start is not None:
+            dff = dff[dff["_Deliverdate_dt"] >= start]
+        if end is not None:
+            dff = dff[dff["_Deliverdate_dt"] <= end]
+    if qty_range:
+        lo, hi = qty_range
+        dff = dff[(dff["Number"] >= lo) & (dff["Number"] <= hi)]
+    return dff
 
-    def filter_in(col, selected):
-        nonlocal out
-        if selected:
-            out = out[out[col].isin(selected)]
 
-    filter_in("SupplierID", supplier_ids)
-    filter_in("Category", categories)
-    filter_in("LicenseNo", license_nos)
-    filter_in("CustomerID", customer_ids)
-
-    return out
-
-def build_network_graph(df: pd.DataFrame, max_nodes_per_level: int = 60) -> Tuple[List[Node], List[Edge]]:
-    """
-    supplier -> category -> license -> customer
-    Build a hierarchical directed graph. Uses aggregation to limit node explosion.
-    """
+def compute_kpis(df: pd.DataFrame) -> Dict[str, Any]:
     if df is None or df.empty:
-        return [], []
+        return {"rows": 0, "unique_suppliers": 0, "unique_customers": 0, "total_units": 0}
+    return {
+        "rows": int(len(df)),
+        "unique_suppliers": int(df["SupplierID"].nunique()),
+        "unique_customers": int(df["CustomerID"].nunique()),
+        "total_units": float(df["Number"].sum()),
+    }
 
-    # Top nodes per level by volume
-    def top_vals(col):
-        g = df.groupby(col)["Number"].sum().sort_values(ascending=False)
-        vals = [v for v in g.index.tolist() if str(v).strip() != ""]
-        return vals[:max_nodes_per_level]
 
-    top_sup = top_vals("SupplierID")
-    top_cat = top_vals("Category")
-    top_lic = top_vals("LicenseNo")
-    top_cus = top_vals("CustomerID")
+def build_sankey(df: pd.DataFrame, top_n: int = 30) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
 
-    d = df.copy()
-    d = d[d["SupplierID"].isin(top_sup)]
-    d = d[d["Category"].isin(top_cat)]
-    d = d[d["LicenseNo"].isin(top_lic)]
-    d = d[d["CustomerID"].isin(top_cus)]
-
-    # Build aggregated edges with weights
-    e1 = d.groupby(["SupplierID", "Category"])["Number"].sum().reset_index()
-    e2 = d.groupby(["Category", "LicenseNo"])["Number"].sum().reset_index()
-    e3 = d.groupby(["LicenseNo", "CustomerID"])["Number"].sum().reset_index()
+    # Aggregate to reduce complexity
+    agg = (
+        df.groupby(["SupplierID", "LicenseNo", "Model", "CustomerID"], as_index=False)["Number"]
+        .sum()
+        .sort_values("Number", ascending=False)
+    )
+    agg = agg.head(max(5, top_n))
 
     # Nodes
-    nodes = []
-    node_ids = set()
+    suppliers = agg["SupplierID"].unique().tolist()
+    licenses = agg["LicenseNo"].unique().tolist()
+    models = agg["Model"].unique().tolist()
+    customers = agg["CustomerID"].unique().tolist()
 
-    def add_node(prefix, value, color, size):
-        nid = f"{prefix}:{value}"
-        if nid in node_ids:
-            return
-        node_ids.add(nid)
-        nodes.append(Node(
-            id=nid,
-            label=str(value),
-            size=size,
-            color=color,
-            title=f"{prefix} = {value}"
-        ))
+    nodes = suppliers + licenses + models + customers
+    idx = {n: i for i, n in enumerate(nodes)}
 
-    for v in top_sup:
-        add_node("Supplier", v, "#00F5D4", 22)
-    for v in top_cat:
-        add_node("Category", v, "#FEE440", 18)
-    for v in top_lic:
-        add_node("License", v, "#A78BFA", 16)
-    for v in top_cus:
-        add_node("Customer", v, "#FF5D8F", 16)
+    # Links: Supplier->License, License->Model, Model->Customer
+    def link_sum(cols: List[str]) -> pd.DataFrame:
+        return agg.groupby(cols, as_index=False)["Number"].sum()
 
-    edges = []
-    def add_edge(src_prefix, src, dst_prefix, dst, w):
-        s = f"{src_prefix}:{src}"
-        t_ = f"{dst_prefix}:{dst}"
-        if s in node_ids and t_ in node_ids:
-            edges.append(Edge(source=s, target=t_, value=float(w), label=str(int(w))))
+    l1 = link_sum(["SupplierID", "LicenseNo"])
+    l2 = link_sum(["LicenseNo", "Model"])
+    l3 = link_sum(["Model", "CustomerID"])
 
-    for _, r in e1.iterrows():
-        add_edge("Supplier", r["SupplierID"], "Category", r["Category"], r["Number"])
-    for _, r in e2.iterrows():
-        add_edge("Category", r["Category"], "License", r["LicenseNo"], r["Number"])
-    for _, r in e3.iterrows():
-        add_edge("License", r["LicenseNo"], "Customer", r["CustomerID"], r["Number"])
+    sources = []
+    targets = []
+    values = []
 
-    return nodes, edges
-
-def node_info(df: pd.DataFrame, node_id: str) -> str:
-    if not node_id or ":" not in node_id or df is None or df.empty:
-        return ""
-    typ, val = node_id.split(":", 1)
-    val = val.strip()
-    md = [f"### {t['dist_node_info']}", f"- **Type**: `{typ}`", f"- **Value**: `{val}`"]
-    if typ == "Supplier":
-        sub = df[df["SupplierID"] == val]
-    elif typ == "Category":
-        sub = df[df["Category"] == val]
-    elif typ == "License":
-        sub = df[df["LicenseNo"] == val]
-    elif typ == "Customer":
-        sub = df[df["CustomerID"] == val]
-    else:
-        sub = df
-    md.append(f"- Records: **{len(sub):,}**")
-    md.append(f"- Total units (Number): **{int(sub['Number'].sum()):,}**")
-    # Top counterparts
-    if typ != "Supplier":
-        md.append("\n**Top SupplierID**")
-        md.append(sub.groupby("SupplierID")["Number"].sum().sort_values(ascending=False).head(5).to_frame("units").to_markdown())
-    if typ != "Customer":
-        md.append("\n**Top CustomerID**")
-        md.append(sub.groupby("CustomerID")["Number"].sum().sort_values(ascending=False).head(5).to_frame("units").to_markdown())
-    if typ != "Category":
-        md.append("\n**Top Category**")
-        md.append(sub.groupby("Category")["Number"].sum().sort_values(ascending=False).head(5).to_frame("units").to_markdown())
-    if typ != "License":
-        md.append("\n**Top LicenseNo**")
-        md.append(sub.groupby("LicenseNo")["Number"].sum().sort_values(ascending=False).head(5).to_frame("units").to_markdown())
-    return "\n".join(md)
-
-def build_sankey(df: pd.DataFrame) -> go.Figure:
-    if df is None or df.empty:
-        return go.Figure()
-
-    g = df.groupby(["SupplierID", "Category", "LicenseNo", "CustomerID"])["Number"].sum().reset_index()
-    g = g.sort_values("Number", ascending=False).head(300)  # limit for performance
-
-    labels = []
-    label_index = {}
-
-    def idx(label):
-        if label not in label_index:
-            label_index[label] = len(labels)
-            labels.append(label)
-        return label_index[label]
-
-    # Build links for each hop
-    links_src, links_tgt, links_val = [], [], []
-    # Supplier -> Category
-    g1 = g.groupby(["SupplierID", "Category"])["Number"].sum().reset_index()
-    for _, r in g1.iterrows():
-        s = idx(f"S:{r['SupplierID']}")
-        t_ = idx(f"C:{r['Category']}")
-        links_src.append(s); links_tgt.append(t_); links_val.append(float(r["Number"]))
-    # Category -> License
-    g2 = g.groupby(["Category", "LicenseNo"])["Number"].sum().reset_index()
-    for _, r in g2.iterrows():
-        s = idx(f"C:{r['Category']}")
-        t_ = idx(f"L:{r['LicenseNo']}")
-        links_src.append(s); links_tgt.append(t_); links_val.append(float(r["Number"]))
-    # License -> Customer
-    g3 = g.groupby(["LicenseNo", "CustomerID"])["Number"].sum().reset_index()
-    for _, r in g3.iterrows():
-        s = idx(f"L:{r['LicenseNo']}")
-        t_ = idx(f"U:{r['CustomerID']}")
-        links_src.append(s); links_tgt.append(t_); links_val.append(float(r["Number"]))
+    for _, r in l1.iterrows():
+        sources.append(idx[r["SupplierID"]])
+        targets.append(idx[r["LicenseNo"]])
+        values.append(float(r["Number"]))
+    for _, r in l2.iterrows():
+        sources.append(idx[r["LicenseNo"]])
+        targets.append(idx[r["Model"]])
+        values.append(float(r["Number"]))
+    for _, r in l3.iterrows():
+        sources.append(idx[r["Model"]])
+        targets.append(idx[r["CustomerID"]])
+        values.append(float(r["Number"]))
 
     fig = go.Figure(
         data=[
             go.Sankey(
-                arrangement="snap",
                 node=dict(
-                    pad=12,
+                    pad=14,
                     thickness=14,
-                    line=dict(color="rgba(255,255,255,0.25)", width=0.5),
-                    label=labels,
+                    line=dict(color="rgba(0,0,0,0.15)", width=0.5),
+                    label=nodes,
                 ),
-                link=dict(source=links_src, target=links_tgt, value=links_val),
+                link=dict(source=sources, target=targets, value=values),
             )
         ]
     )
-    fig.update_layout(height=520, margin=dict(l=10, r=10, t=10, b=10))
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
     return fig
 
-def build_timeseries(df: pd.DataFrame) -> go.Figure:
-    if df is None or df.empty:
-        return go.Figure()
-    d = df.copy()
-    if "Deliverdate_dt" not in d.columns or not d["Deliverdate_dt"].notna().any():
-        return go.Figure()
-    ts = d.groupby(d["Deliverdate_dt"].dt.to_period("D").dt.to_timestamp()).agg(
-        records=("SupplierID", "size"),
-        units=("Number", "sum"),
-    ).reset_index().rename(columns={"Deliverdate_dt": "date"})
+
+def build_temporal_pulse(df: pd.DataFrame, freq: str = "D") -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty or "_Deliverdate_dt" not in df.columns:
+        return None
+
+    dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
+    if dff.empty:
+        return None
+
+    # Aggregate by time
+    ts = dff.set_index("_Deliverdate_dt")["Number"].resample(freq).sum().reset_index()
+    ts = ts.sort_values("_Deliverdate_dt")
+    ts["ma"] = ts["Number"].rolling(7, min_periods=2).mean()
+
+    # Anomaly: z-score-ish on residuals
+    residual = ts["Number"] - ts["ma"].fillna(ts["Number"].mean())
+    denom = residual.std() if residual.std() and residual.std() > 0 else 1.0
+    ts["z"] = residual / denom
+    ts["anomaly"] = ts["z"].abs() >= 2.5
+
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=ts["date"], y=ts["records"], mode="lines+markers", name="records"))
-    fig.add_trace(go.Scatter(x=ts["date"], y=ts["units"], mode="lines+markers", name="units", yaxis="y2"))
-    fig.update_layout(
-        height=320,
-        margin=dict(l=10, r=10, t=10, b=10),
-        yaxis=dict(title="records"),
-        yaxis2=dict(title="units", overlaying="y", side="right"),
-        legend=dict(orientation="h"),
-    )
+    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["Number"], mode="lines", name="Units"))
+    fig.add_trace(go.Scatter(x=ts["_Deliverdate_dt"], y=ts["ma"], mode="lines", name="7d MA"))
+    ano = ts[ts["anomaly"]]
+    if not ano.empty:
+        fig.add_trace(go.Scatter(
+            x=ano["_Deliverdate_dt"], y=ano["Number"],
+            mode="markers", name="Anomaly",
+            marker=dict(size=10, color="rgba(255,99,71,0.9)", line=dict(width=1, color="rgba(0,0,0,0.2)"))
+        ))
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=420)
     return fig
 
-def build_top_bars(df: pd.DataFrame) -> Tuple[go.Figure, go.Figure]:
-    if df is None or df.empty:
-        return go.Figure(), go.Figure()
-    top_sup = df.groupby("SupplierID")["Number"].sum().sort_values(ascending=False).head(12).reset_index()
-    top_cus = df.groupby("CustomerID")["Number"].sum().sort_values(ascending=False).head(12).reset_index()
 
-    fig1 = px.bar(top_sup, x="SupplierID", y="Number", title="Top SupplierID (units)")
-    fig1.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=10))
+def build_mosaic_heatmap(df: pd.DataFrame, top_n_customers: int = 25, top_n_models: int = 20) -> Optional["go.Figure"]:
+    if go is None or df is None or df.empty:
+        return None
 
-    fig2 = px.bar(top_cus, x="CustomerID", y="Number", title="Top CustomerID (units)")
-    fig2.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=10))
-    return fig1, fig2
+    # Top customers & models by volume
+    cust = df.groupby("CustomerID")["Number"].sum().sort_values(ascending=False).head(top_n_customers).index
+    mod = df.groupby("Model")["Number"].sum().sort_values(ascending=False).head(top_n_models).index
+    dff = df[df["CustomerID"].isin(cust) & df["Model"].isin(mod)].copy()
+    if dff.empty:
+        return None
 
-def build_heatmap(df: pd.DataFrame) -> go.Figure:
-    if df is None or df.empty:
-        return go.Figure()
-    pivot = df.pivot_table(
-        index="SupplierID", columns="Category", values="Number", aggfunc="sum", fill_value=0
+    pivot = dff.pivot_table(index="CustomerID", columns="Model", values="Number", aggfunc="sum", fill_value=0)
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=pivot.columns.tolist(),
+            y=pivot.index.tolist(),
+            colorscale="Blues",
+            hoverongaps=False,
+        )
     )
-    # limit size
-    pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).head(20).index]
-    pivot = pivot[pivot.sum(axis=0).sort_values(ascending=False).head(20).index]
-    fig = px.imshow(pivot, aspect="auto", title="Supplier × Category (units)")
-    fig.update_layout(height=460, margin=dict(l=10, r=10, t=40, b=10))
+    fig.update_layout(margin=dict(l=10, r=10, t=40, b=10), height=520)
     return fig
 
-def dataset_stats_pack(df: pd.DataFrame) -> Dict[str, Any]:
+
+def build_classic_charts(df: pd.DataFrame, top_n: int = 12) -> Dict[str, Any]:
+    charts: Dict[str, Any] = {}
+    if px is None or df is None or df.empty:
+        return charts
+
+    # Timeline
+    if "_Deliverdate_dt" in df.columns:
+        dff = df.dropna(subset=["_Deliverdate_dt"]).copy()
+        if not dff.empty:
+            ts = dff.groupby("_Deliverdate_dt", as_index=False)["Number"].sum().sort_values("_Deliverdate_dt")
+            charts["timeline"] = px.area(ts, x="_Deliverdate_dt", y="Number", title="")
+
+    # Model distribution
+    mod = df.groupby("Model", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["model_dist"] = px.pie(mod, names="Model", values="Number", title="")
+
+    # Top customers
+    cust = df.groupby("CustomerID", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["top_customers"] = px.bar(cust, x="CustomerID", y="Number", title="")
+
+    # License usage
+    lic = df.groupby("LicenseNo", as_index=False)["Number"].sum().sort_values("Number", ascending=False).head(top_n)
+    charts["license_usage"] = px.bar(lic, x="LicenseNo", y="Number", title="")
+
+    for k, fig in charts.items():
+        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=360)
+    return charts
+
+
+# -----------------------------------
+# UI building blocks
+# -----------------------------------
+
+def status_strip(lang: str) -> None:
+    st.markdown(f"### {_t(lang, 'status_strip')}")
+    chips = []
+
+    # Provider chips
+    for p in PROVIDERS:
+        status, src = provider_status(p)
+        if status == "configured" and src == "env":
+            label = f"{p.upper()}: {_t(lang, 'configured_env')}"
+        elif status == "configured" and src == "session":
+            label = f"{p.upper()}: {_t(lang, 'configured_session')}"
+        else:
+            label = f"{p.upper()}: {_t(lang, 'missing')}"
+        chips.append(f"<span class='rcc-chip'>{label}</span>")
+
+    # Dataset chip
+    df = st.session_state.get("dataset_df")
+    rows = int(len(df)) if isinstance(df, pd.DataFrame) else 0
+    chips.append(f"<span class='rcc-chip'>DATA: {rows} rows</span>")
+
+    # Agent pipeline chip
+    pipeline_state = st.session_state.get("pipeline_state", {"status": "idle"})
+    chips.append(f"<span class='rcc-chip'>{_t(lang,'agent_pipeline')}: {pipeline_state.get('status','idle')}</span>")
+
+    st.markdown("".join(chips), unsafe_allow_html=True)
+
+
+def wow_header_controls(lang: str) -> None:
+    with st.sidebar:
+        st.markdown(f"## {APP_TITLE}")
+
+        # Language
+        sel_lang = st.selectbox(_t(lang, "language"), options=["en", "zh-TW"], index=0 if lang == "en" else 1)
+        st.session_state["lang"] = sel_lang
+
+        # Theme + mode
+        themes = list(painter_themes().keys())
+        current_theme = st.session_state.get("theme_name", themes[0])
+        current_mode = st.session_state.get("theme_mode", "light")
+
+        theme_name = st.selectbox(_t(sel_lang, "theme"), options=themes, index=themes.index(current_theme) if current_theme in themes else 0)
+        mode = st.radio(_t(sel_lang, "mode"), options=["light", "dark"], index=0 if current_mode == "light" else 1, horizontal=True,
+                        format_func=lambda x: _t(sel_lang, x))
+
+        colj1, colj2 = st.columns([1, 1])
+        with colj1:
+            if st.button(_t(sel_lang, "jackpot"), use_container_width=True):
+                theme_name = random.choice(themes)
+                st.session_state["theme_name"] = theme_name
+        with colj2:
+            st.caption(f"{theme_name} / {_t(sel_lang, mode)}")
+
+        st.session_state["theme_name"] = theme_name
+        st.session_state["theme_mode"] = mode
+
+
+def dataset_ingestion_panel(lang: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    st.markdown(f"## {_t(lang, 'data_source')}")
+
+    use_default = st.toggle(_t(lang, "use_default"), value=st.session_state.get("use_default_dataset", True))
+    st.session_state["use_default_dataset"] = use_default
+
+    parse_warnings: List[str] = []
+    df: pd.DataFrame = st.session_state.get("dataset_df", pd.DataFrame(columns=REQUIRED_COLUMNS))
+
+    if use_default:
+        if st.session_state.get("_default_loaded") is not True:
+            default_df, w = load_default_dataset(DEFAULT_DATASET_PATH)
+            default_df, w2 = standardize_columns(default_df)
+            parse_warnings = w + w2
+            st.session_state["dataset_df"] = default_df
+            st.session_state["dataset_parse_warnings"] = parse_warnings
+            st.session_state["_default_loaded"] = True
+        else:
+            parse_warnings = st.session_state.get("dataset_parse_warnings", [])
+    else:
+        st.session_state["_default_loaded"] = False
+
+        st.markdown(f"### {_t(lang, 'paste_or_upload')}")
+        pasted = st.text_area(_t(lang, "paste_here"), height=160, placeholder="CSV header + rows, or JSON array of records")
+        uploaded = st.file_uploader(_t(lang, "upload_file"), type=["csv", "json", "txt"])
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button(_t(lang, "load_dataset"), type="primary", use_container_width=True):
+                content = ""
+                if uploaded is not None:
+                    content = try_read_text_file(uploaded)
+                elif pasted.strip():
+                    content = pasted
+                df_new, w = parse_dataset_from_text(content)
+                df_new, w2 = standardize_columns(df_new)
+                parse_warnings = w + w2
+                st.session_state["dataset_df"] = df_new
+                st.session_state["dataset_parse_warnings"] = parse_warnings
+        with col2:
+            if st.button(_t(lang, "clear_dataset"), use_container_width=True):
+                st.session_state["dataset_df"] = pd.DataFrame(columns=REQUIRED_COLUMNS)
+                st.session_state["dataset_parse_warnings"] = ["Cleared by user"]
+
+        parse_warnings = st.session_state.get("dataset_parse_warnings", [])
+
+    df = st.session_state.get("dataset_df", pd.DataFrame(columns=REQUIRED_COLUMNS))
+    q = dataset_quality_report(df, st.session_state.get("dataset_parse_warnings", []))
+
+    # Quality + KPI row
+    kpis = compute_kpis(df)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(_t(lang, "rows"), kpis["rows"])
+    c2.metric(_t(lang, "unique_suppliers"), kpis["unique_suppliers"])
+    c3.metric(_t(lang, "unique_customers"), kpis["unique_customers"])
+    c4.metric(_t(lang, "total_units"), f"{kpis['total_units']:.0f}")
+
+    with st.expander(_t(lang, "data_quality"), expanded=False):
+        st.write({
+            _t(lang, "missing_cols"): q["missing_cols"],
+            _t(lang, "parse_warnings"): q["parse_warnings"],
+            "duplicates": q["duplicates"],
+            "unparsed_dates": q["unparsed_dates"],
+            "nonpositive_qty": q["nonpositive_qty"],
+        })
+
+    st.markdown(f"### {_t(lang, 'dataset_preview')}")
+    st.dataframe(df.head(50), use_container_width=True)
+
+    return df, q
+
+
+def distribution_filters(lang: str, df: pd.DataFrame) -> Dict[str, Any]:
+    st.markdown(f"## {_t(lang, 'filters')}")
     if df is None or df.empty:
-        return {}
-    pack = {}
-    pack["records"] = int(len(df))
-    if "Deliverdate_dt" in df.columns and df["Deliverdate_dt"].notna().any():
-        pack["date_min"] = str(df["Deliverdate_dt"].min().date())
-        pack["date_max"] = str(df["Deliverdate_dt"].max().date())
-    pack["units_total"] = int(df["Number"].sum())
-    pack["supplier_count"] = int(df["SupplierID"].replace("", pd.NA).dropna().nunique())
-    pack["customer_count"] = int(df["CustomerID"].replace("", pd.NA).dropna().nunique())
-    pack["category_count"] = int(df["Category"].replace("", pd.NA).dropna().nunique())
-    pack["license_count"] = int(df["LicenseNo"].replace("", pd.NA).dropna().nunique())
+        st.info("No dataset loaded.")
+        return {"suppliers": [], "customers": [], "licenses": [], "models": [], "date_range": None, "qty_range": None, "top_n": 20}
 
-    def top(col, n=10):
-        s = df.groupby(col)["Number"].sum().sort_values(ascending=False).head(n)
-        return [{"value": str(k), "units": int(v)} for k, v in s.items() if str(k).strip() != ""]
+    # Options
+    suppliers_opt = sorted([x for x in df["SupplierID"].dropna().astype(str).unique().tolist() if x.strip()])
+    customers_opt = sorted([x for x in df["CustomerID"].dropna().astype(str).unique().tolist() if x.strip()])
+    licenses_opt = sorted([x for x in df["LicenseNo"].dropna().astype(str).unique().tolist() if x.strip()])
+    models_opt = sorted([x for x in df["Model"].dropna().astype(str).unique().tolist() if x.strip()])
 
-    pack["top_suppliers"] = top("SupplierID", 10)
-    pack["top_customers"] = top("CustomerID", 10)
-    pack["top_categories"] = top("Category", 10)
-    pack["top_licenses"] = top("LicenseNo", 10)
-    return pack
-
-
-# =========================
-# Sidebar
-# =========================
-with st.sidebar:
-    st.markdown(f"### ⚙️ {t['sidebar_config']}")
-
-    st.markdown(f"#### ✨ {t['appearance']}")
     colA, colB = st.columns(2)
     with colA:
-        st.session_state.theme_mode = st.selectbox(
-            t["theme_mode"],
-            ["dark", "light"],
-            index=0 if st.session_state.theme_mode == "dark" else 1,
-            format_func=lambda x: t["dark"] if x == "dark" else t["light"],
-        )
+        suppliers = st.multiselect(_t(lang, "supplier_filter"), suppliers_opt, default=st.session_state.get("flt_suppliers", []))
+        customers = st.multiselect(_t(lang, "customer_filter"), customers_opt, default=st.session_state.get("flt_customers", []))
     with colB:
-        st.session_state.lang = st.selectbox(
-            t["language"],
-            ["en", "zh-TW"],
-            index=0 if st.session_state.lang == "en" else 1,
-        )
-        t = I18N[st.session_state.lang]
+        licenses = st.multiselect(_t(lang, "license_filter"), licenses_opt, default=st.session_state.get("flt_licenses", []))
+        models = st.multiselect(_t(lang, "model_filter"), models_opt, default=st.session_state.get("flt_models", []))
 
-    st.markdown(f"#### 🎨 {t['style_engine']}")
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.session_state.painter_style = st.selectbox(
-            t["choose_style"], PAINTER_STYLES, index=PAINTER_STYLES.index(st.session_state.painter_style)
-        )
-    with c2:
-        if st.button("🎰 " + t["jackpot"], use_container_width=True):
-            st.session_state.painter_style = random.choice(PAINTER_STYLES)
-            st.rerun()
+    # Date range
+    date_range = None
+    if "_Deliverdate_dt" in df.columns and df["_Deliverdate_dt"].notna().any():
+        dmin = pd.to_datetime(df["_Deliverdate_dt"].min()).date()
+        dmax = pd.to_datetime(df["_Deliverdate_dt"].max()).date()
+        dr = st.date_input(_t(lang, "date_range"), value=(dmin, dmax), min_value=dmin, max_value=dmax)
+        if isinstance(dr, tuple) and len(dr) == 2:
+            date_range = (pd.to_datetime(dr[0]), pd.to_datetime(dr[1]))
 
-    st.markdown(_css(st.session_state.theme_mode, st.session_state.painter_style), unsafe_allow_html=True)
+    # Qty range
+    qty_range = None
+    qmin = float(df["Number"].min()) if "Number" in df.columns else 0.0
+    qmax = float(df["Number"].max()) if "Number" in df.columns else 0.0
+    if qmax > qmin:
+        qr = st.slider(_t(lang, "qty_range"), min_value=float(qmin), max_value=float(qmax), value=(float(qmin), float(qmax)))
+        qty_range = qr
 
-    st.markdown("---")
-    st.markdown(f"#### 🔑 {t['api_keys']}")
+    top_n = st.slider(_t(lang, "top_n"), min_value=10, max_value=200, value=int(st.session_state.get("flt_top_n", 30)), step=5)
 
-    def key_input(env_var: str, label: str):
-        key, from_env = get_api_key(env_var)
-        if from_env:
-            st.caption(f"{label}: **{t['loaded_from_env']}**")
-        else:
-            st.session_state.ui_keys[env_var] = st.text_input(
-                label,
-                type="password",
-                value=st.session_state.ui_keys.get(env_var, ""),
-                help=t["enter_if_missing"],
-            )
+    if st.button(_t(lang, "reset_filters")):
+        for k in ["flt_suppliers", "flt_customers", "flt_licenses", "flt_models", "flt_top_n"]:
+            if k in st.session_state:
+                del st.session_state[k]
+        st.rerun()
 
-    key_input("OPENAI_API_KEY", t["openai_key"])
-    key_input("GEMINI_API_KEY", t["gemini_key"])
-    key_input("ANTHROPIC_API_KEY", t["anthropic_key"])
-    key_input("GROK_API_KEY", t["grok_key"])
+    # Persist
+    st.session_state["flt_suppliers"] = suppliers
+    st.session_state["flt_customers"] = customers
+    st.session_state["flt_licenses"] = licenses
+    st.session_state["flt_models"] = models
+    st.session_state["flt_top_n"] = top_n
 
-    st.markdown("---")
-    with st.expander("🧪 Session Controls", expanded=False):
-        if st.button(t["clear_history"], use_container_width=True):
-            st.session_state.execution_log = []
-            st.session_state.runs = 0
-            st.session_state.last_run_ts = None
-            st.session_state.chain_state = {"active": False, "agents": [], "idx": 0, "current_input": "", "last_output": "", "overrides": {}}
-            st.toast("Cleared.", icon="🧹")
-
-
-# =========================
-# Header + status chips
-# =========================
-resolved_openai, _ = get_api_key("OPENAI_API_KEY")
-resolved_gemini, _ = get_api_key("GEMINI_API_KEY")
-resolved_anthropic, _ = get_api_key("ANTHROPIC_API_KEY")
-resolved_grok, _ = get_api_key("GROK_API_KEY")
-
-keys_status = {
-    "openai": bool(resolved_openai),
-    "gemini": bool(resolved_gemini),
-    "anthropic": bool(resolved_anthropic),
-    "grok": bool(resolved_grok),
-}
-provider_ok = sum(1 for v in keys_status.values() if v)
-last_run_disp = st.session_state.last_run_ts or "—"
-
-st.markdown(
-    f"""
-<div class="wow-hero">
-  <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
-    <div>
-      <div class="wow-title">{t['app_title']}</div>
-      <div class="wow-subtitle">{t['subtitle']}</div>
-      <div style="margin-top:0.55rem;">
-        <span class="wow-chip"><span class="wow-dot"></span><b>{t['status']}</b></span>
-        <span class="wow-chip"><span class="wow-dot2"></span>{st.session_state.theme_mode.upper()} · {st.session_state.painter_style.replace('_',' ').upper()}</span>
-        <span class="wow-chip">🌐 {st.session_state.lang}</span>
-        <span class="wow-chip">🔌 {t['provider_status']}: {provider_ok}/4</span>
-        <span class="wow-chip">🕒 {t['last_run']}: {escape_html(str(last_run_disp))}</span>
-      </div>
-    </div>
-    <div style="min-width:280px; max-width:420px;">
-      <div class="wow-card">
-        <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
-          <span class="wow-chip">🔑 {t['keys_status']}: OpenAI={'✅' if keys_status['openai'] else '—'}</span>
-          <span class="wow-chip">Gemini={'✅' if keys_status['gemini'] else '—'}</span>
-          <span class="wow-chip">Anthropic={'✅' if keys_status['anthropic'] else '—'}</span>
-          <span class="wow-chip">Grok={'✅' if keys_status['grok'] else '—'}</span>
-        </div>
-        <div style="margin-top:0.6rem; color:var(--wow-muted); font-size:0.9rem;">
-          Tip: If a key exists in ENV, it stays hidden automatically.
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-st.write("")
-
-# =========================
-# Tabs
-# =========================
-tab_workspace, tab_agents, tab_distribution, tab_notes, tab_history, tab_settings = st.tabs(
-    [
-        f"🪐 {t['tabs_workspace']}",
-        f"🤖 {t['tabs_agents']}",
-        f"🧬 {t['tabs_distribution']}",
-        f"📝 {t['tabs_notes']}",
-        f"🕰️ {t['tabs_history']}",
-        f"⚙️ {t['tabs_settings']}",
-    ]
-)
-
-
-# =========================
-# Workspace Tab (original)
-# =========================
-with tab_workspace:
-    st.markdown(f"### 📊 {t['dashboard']}")
-    agents_count = len((st.session_state.agents_config or {}).get("agents", []))
-    docs_count = len(st.session_state.processed_docs)
-    runs = st.session_state.runs
-
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        st.metric("Active Agents", agents_count)
-    with m2:
-        st.metric("Docs Loaded", docs_count)
-    with m3:
-        st.metric(t["runs_today"], runs)
-    with m4:
-        st.metric("System Pulse", int(time.time()) % 1000)
-
-    st.markdown("---")
-    st.markdown(f"### 📂 {t['documents']}")
-
-    left, right = st.columns([1.05, 0.95], gap="large")
-    with left:
-        up_col1, up_col2 = st.columns([1, 1])
-        with up_col1:
-            uploaded_files = st.file_uploader(t["upload"], accept_multiple_files=True)
-        with up_col2:
-            if st.button("🧾 " + t["load_sample"], use_container_width=True):
-                st.session_state.processed_docs["sample_dataset.csv"] = load_default_distribution_text()
-                st.toast("Sample loaded: sample_dataset.csv", icon="📎")
-
-        if uploaded_files:
-            for f in uploaded_files:
-                name, text = safe_read_uploaded(f)
-                if name not in st.session_state.processed_docs:
-                    st.session_state.processed_docs[name] = text
-
-        if not st.session_state.processed_docs:
-            st.info("Upload a document or load the sample dataset to begin.")
-        else:
-            kw_col1, kw_col2 = st.columns([2, 1])
-            with kw_col1:
-                keywords_csv = st.text_input(t["keyword_list"], value="SupplierID,CustomerID,LicenseNo,Model,DeviceNAME")
-            with kw_col2:
-                kw_color = st.color_picker(t["keyword_color"], value="#FF8A5B")
-
-            keywords = [k.strip() for k in keywords_csv.split(",") if k.strip()]
-
-            for doc_name, doc_text in list(st.session_state.processed_docs.items()):
-                with st.expander(f"📄 {doc_name}", expanded=False):
-                    st.text_area(t["doc_preview"], doc_text, height=220, key=f"preview_{doc_name}")
-                    b1, b2 = st.columns([1, 2])
-                    with b1:
-                        if st.button(f"🔎 {t['scan_keywords']}", key=f"scan_{doc_name}"):
-                            html = highlight_keywords_html(doc_text, keywords=keywords, color=kw_color)
-                            st.session_state.processed_docs[f"{doc_name}__highlighted"] = html
-                    with b2:
-                        st.caption("Keyword scan produces HTML-highlighted view (does not change original text).")
-
-                    if f"{doc_name}__highlighted" in st.session_state.processed_docs:
-                        st.markdown(st.session_state.processed_docs[f"{doc_name}__highlighted"], unsafe_allow_html=True)
-
-    with right:
-        st.markdown(
-            f"<div class='wow-card'><b>{t['context']}</b><br/>Pick a document as context for agents, or paste custom context in the Agents tab.</div>",
-            unsafe_allow_html=True,
-        )
-        st.write("")
-        st.markdown(
-            f"<div class='wow-card'><b>WOW Tips</b><br/>• Use 🎰 Jackpot to explore painter styles.<br/>• Use step-by-step chain mode to edit each agent’s output before passing to the next.<br/>• Use the Distribution tab for interactive network + Sankey + filters.</div>",
-            unsafe_allow_html=True,
-        )
-
-
-# =========================
-# Agents Tab (original)
-# =========================
-with tab_agents:
-    st.markdown(f"### 🤖 {t['agents_exec']}")
-
-    openai_key, _ = get_api_key("OPENAI_API_KEY")
-    gemini_key, _ = get_api_key("GEMINI_API_KEY")
-    anthropic_key, _ = get_api_key("ANTHROPIC_API_KEY")
-    grok_key, _ = get_api_key("GROK_API_KEY")
-
-    resolved_keys = {
-        "openai": openai_key,
-        "gemini": gemini_key,
-        "anthropic": anthropic_key,
-        "grok": grok_key,
+    return {
+        "suppliers": suppliers,
+        "customers": customers,
+        "licenses": licenses,
+        "models": models,
+        "date_range": date_range,
+        "qty_range": qty_range,
+        "top_n": top_n,
     }
 
-    agents_cfg = st.session_state.agents_config or {"agents": []}
-    all_agents = agents_cfg.get("agents", [])
-    agent_names = [a.get("name", f"agent_{i+1}") for i, a in enumerate(all_agents)]
 
-    topL, topR = st.columns([1.1, 0.9], gap="large")
+# -----------------------------------
+# Pages
+# -----------------------------------
 
-    with topL:
-        st.markdown(f"#### 🧠 {t['context']}")
-        doc_options = list(st.session_state.processed_docs.keys())
-        selected_doc = st.selectbox(t["select_context_doc"], ["None"] + doc_options, index=0)
-        manual_context = st.text_area(t["or_manual_context"], height=180, placeholder="Paste context here...")
+def page_distribution_lab(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_distribution')}")
+    status_strip(lang)
 
-        context_text = ""
-        if selected_doc != "None":
-            context_text = st.session_state.processed_docs.get(selected_doc, "")
-        if manual_context.strip():
-            context_text = manual_context.strip()
-        st.caption(f"{t['token_estimate']}: {estimate_tokens(context_text)}")
-
-    with topR:
-        st.markdown(f"#### 🔗 {t['chain_agents']}")
-        selected_agents = st.multiselect(t["chain_agents"], agent_names, default=[])
-
-        chain_controls_1, chain_controls_2 = st.columns(2)
-        with chain_controls_1:
-            if st.button("🧭 " + t["start_chain"], use_container_width=True, disabled=not bool(selected_agents)):
-                st.session_state.chain_state = {
-                    "active": True,
-                    "agents": selected_agents,
-                    "idx": 0,
-                    "current_input": context_text,
-                    "last_output": "",
-                    "overrides": {},
-                }
-                st.toast("Chain started (step-by-step).", icon="🧭")
-                st.rerun()
-
-        with chain_controls_2:
-            if st.button("⚡ " + t["run_all"], use_container_width=True, disabled=not bool(selected_agents)):
-                st.session_state.chain_state = {
-                    "active": True,
-                    "agents": selected_agents,
-                    "idx": 0,
-                    "current_input": context_text,
-                    "last_output": "",
-                    "overrides": st.session_state.chain_state.get("overrides", {}) if isinstance(st.session_state.chain_state, dict) else {},
-                }
-                st.session_state.chain_state["auto"] = True
-                st.toast("Chain running (auto).", icon="⚡")
-                st.rerun()
-
-        if st.button("🔁 " + t["reset_chain"], use_container_width=True):
-            st.session_state.chain_state = {"active": False, "agents": [], "idx": 0, "current_input": "", "last_output": "", "overrides": {}}
-            st.toast("Chain reset.", icon="🔁")
-            st.rerun()
-
-        st.markdown("<div class='wow-card'>You can override each agent’s <b>model / max_tokens / temperature / prompt</b> before executing.</div>", unsafe_allow_html=True)
+    df, q = dataset_ingestion_panel(lang)
+    flt = distribution_filters(lang, df)
+    dff = filter_df(df, **{k: flt[k] for k in ["suppliers", "customers", "licenses", "models", "date_range", "qty_range"]})
 
     st.markdown("---")
+    tab1, tab2 = st.tabs([_t(lang, "wow_graphs"), _t(lang, "classic_charts")])
 
-    cs = st.session_state.chain_state
-    if cs.get("active") and cs.get("agents"):
-        idx = int(cs.get("idx", 0))
-        chain = cs["agents"]
-        auto = bool(cs.get("auto", False))
-
-        if idx >= len(chain):
-            st.success(t["complete"])
-            cs["active"] = False
-            cs["auto"] = False
+    with tab1:
+        st.markdown(f"## {_t(lang, 'sankey_title')}")
+        fig1 = build_sankey(dff, top_n=flt["top_n"])
+        if fig1 is not None:
+            st.plotly_chart(fig1, use_container_width=True)
         else:
-            agent_name = chain[idx]
-            agent_conf = next((a for a in all_agents if a.get("name") == agent_name), None) or {}
-            base_model = agent_conf.get("model", "gpt-4o-mini")
-            base_prompt = agent_conf.get("prompt", "{input}")
-            base_system = agent_conf.get("system_prompt", "You are a helpful assistant.")
-            base_temp = float(agent_conf.get("temperature", 0.2))
-            base_max = int(agent_conf.get("max_tokens", 12000))
+            st.info("Sankey unavailable (missing Plotly) or no data after filtering.")
 
-            st.markdown(f"### 🧩 Step {idx+1}/{len(chain)} — **{agent_name}**")
-
-            if agent_name not in cs.get("overrides", {}):
-                cs["overrides"][agent_name] = {}
-            overrides = cs["overrides"][agent_name]
-
-            with st.expander("🛠️ " + t["agent_config"], expanded=True):
-                cA, cB, cC = st.columns([1.2, 1, 1])
-                with cA:
-                    model = st.selectbox(
-                        t["model"],
-                        MODEL_CHOICES,
-                        index=MODEL_CHOICES.index(overrides.get("model", base_model)) if overrides.get("model", base_model) in MODEL_CHOICES else 0,
-                        key=f"model_{agent_name}_{idx}",
-                    )
-                with cB:
-                    max_tokens = st.number_input(
-                        t["max_tokens"],
-                        min_value=256,
-                        max_value=200000,
-                        value=int(overrides.get("max_tokens", base_max or 12000)),
-                        step=256,
-                        key=f"max_{agent_name}_{idx}",
-                    )
-                with cC:
-                    temperature = st.slider(
-                        t["temperature"],
-                        min_value=0.0,
-                        max_value=1.5,
-                        value=float(overrides.get("temperature", base_temp)),
-                        step=0.05,
-                        key=f"temp_{agent_name}_{idx}",
-                    )
-
-                provider = infer_provider(model)
-                st.caption(f"Provider (auto): **{provider}**")
-
-                system_prompt = st.text_area(
-                    t["system_prompt"],
-                    value=overrides.get("system_prompt", base_system),
-                    height=120,
-                    key=f"sys_{agent_name}_{idx}",
-                )
-                prompt_tpl = st.text_area(
-                    t["prompt"],
-                    value=overrides.get("prompt", base_prompt),
-                    height=140,
-                    key=f"prompt_{agent_name}_{idx}",
-                )
-
-                overrides.update(
-                    {
-                        "provider": provider,
-                        "model": model,
-                        "max_tokens": int(max_tokens),
-                        "temperature": float(temperature),
-                        "system_prompt": system_prompt,
-                        "prompt": prompt_tpl,
-                    }
-                )
-                cs["overrides"][agent_name] = overrides
-                st.session_state.chain_state = cs
-
-            st.markdown("#### 🧾 " + t["input_to_agent"])
-            cs["current_input"] = st.text_area(
-                t["input_to_agent"],
-                value=cs.get("current_input", ""),
-                height=220,
-                key=f"input_{agent_name}_{idx}",
-            )
-            st.caption(f"{t['token_estimate']}: {estimate_tokens(cs['current_input'])}")
-
-            run_col1, run_col2 = st.columns([1, 1])
-            with run_col1:
-                do_run = st.button("▶️ " + t["run_agent"], key=f"run_{agent_name}_{idx}", use_container_width=True)
-            with run_col2:
-                view = st.radio(
-                    t["output_view"],
-                    [t["markdown"], t["text"]],
-                    horizontal=True,
-                    key=f"view_{agent_name}_{idx}",
-                )
-
-            if do_run or auto:
-                with st.status(f"Running {agent_name}…", expanded=True) as status:
-                    st.write(f"Model: **{overrides.get('model')}** | Provider: **{overrides.get('provider')}**")
-                    output, meta = run_agent(agent_conf, cs["current_input"], overrides, resolved_keys)
-
-                    cs["last_output"] = output
-                    st.session_state.chain_state = cs
-
-                    st.session_state.execution_log.append(
-                        {
-                            "ts": now_str(),
-                            "agent": agent_name,
-                            "input_tokens_est": estimate_tokens(cs["current_input"]),
-                            "output_tokens_est": estimate_tokens(output),
-                            "output": output,
-                            "meta": meta,
-                        }
-                    )
-                    st.session_state.runs += 1
-                    st.session_state.last_run_ts = now_str()
-
-                    if view == t["markdown"]:
-                        st.markdown(output)
-                    else:
-                        st.text_area(t["output"], output, height=260)
-
-                    status.update(label=f"{agent_name} Complete", state="complete")
-
-                st.markdown("#### ✍️ " + t["edit_output_for_next"])
-                edited = st.text_area(
-                    t["edit_output_for_next"],
-                    value=cs["last_output"],
-                    height=240,
-                    key=f"edited_{agent_name}_{idx}",
-                )
-
-                next_col1, next_col2 = st.columns([1, 1])
-                with next_col1:
-                    if st.button("➡️ " + t["use_as_next"], key=f"use_next_{agent_name}_{idx}", use_container_width=True):
-                        cs["current_input"] = edited
-                        cs["idx"] = idx + 1
-                        cs["auto"] = False
-                        st.session_state.chain_state = cs
-                        st.rerun()
-
-                with next_col2:
-                    if idx + 1 < len(chain):
-                        st.markdown(f"<div class='wow-card'><b>{t['next_agent']}:</b> {escape_html(chain[idx+1])}</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div class='wow-card'><b>{t['next_agent']}:</b> —</div>", unsafe_allow_html=True)
-
-                if auto:
-                    cs["current_input"] = edited
-                    cs["idx"] = idx + 1
-                    st.session_state.chain_state = cs
-                    st.rerun()
-    else:
-        st.info("Select agents and start a chain to run step-by-step (with editable outputs).")
-
-
-# =========================
-# Distribution Visualization Tab (NEW)
-# =========================
-with tab_distribution:
-    st.markdown(f"### 🧬 {t['dist_title']}")
-    st.caption(t["dist_transform_note"])
-
-    # Inputs
-    left_in, right_in = st.columns([1.05, 0.95], gap="large")
-    with left_in:
-        st.markdown(f"#### 📥 {t['dist_input']}")
-        st.session_state.dist_dataset_name = st.text_input(
-            t["dist_dataset_name"],
-            value=st.session_state.dist_dataset_name,
-        )
-
-        up = st.file_uploader(t["dist_upload"], type=["txt", "csv", "json"])
-        st.session_state.dist_raw_text = st.text_area(
-            t["dist_paste"],
-            value=st.session_state.dist_raw_text,
-            height=180,
-            placeholder="Paste CSV/JSON/text here…",
-        )
-
-        cA, cB, cC = st.columns([1, 1, 1])
-        with cA:
-            if st.button("📦 " + t["dist_default"], use_container_width=True):
-                st.session_state.dist_raw_text = load_default_distribution_text()
-                st.session_state.dist_dataset_name = "default_distribution_dataset"
-                st.toast("Default dataset loaded.", icon="📦")
-                st.rerun()
-        with cB:
-            do_standardize = st.button("🧪 " + t["dist_standardize"], use_container_width=True)
-        with cC:
-            if st.button("🧹 Clear dataset", use_container_width=True):
-                st.session_state.dist_raw_text = ""
-                st.session_state.dist_df = None
-                st.session_state.dist_summary_md = ""
-                st.toast("Cleared.", icon="🧹")
-                st.rerun()
-
-        # If file uploaded, override raw_text for standardization
-        if up is not None:
-            _, content = safe_read_uploaded(up)
-            if content and content.strip():
-                st.session_state.dist_raw_text = content
-
-        if do_standardize:
-            raw = st.session_state.dist_raw_text or ""
-            df_raw = parse_dataset_text_to_df(raw)
-            df_std = standardize_distribution_df(df_raw)
-            st.session_state.dist_df = df_std
-            st.toast("Standardization complete.", icon="🧪")
-
-    with right_in:
-        st.markdown(f"<div class='wow-card'><b>{t['dist_keep_prompt']}</b><br/>This stores the summary prompt per dataset name in session state.</div>", unsafe_allow_html=True)
-        st.write("")
-        st.markdown("<div class='wow-card'><b>Schema</b><br/>Standard columns:<br/><code>SupplierID, Deliverdate, CustomerID, LicenseNo, Category, UDID, DeviceNAME, LotNO, SerNo, Model, Number</code></div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    df = st.session_state.dist_df
-    if df is None or df.empty:
-        st.warning(t["dist_no_data"])
-    else:
-        # Preview
-        st.markdown(f"#### 👀 {t['dist_preview']}")
-        st.markdown(df_preview_markdown(df, n=20))
-
-        # Filters
-        st.markdown(f"#### 🎛️ {t['dist_filters']}")
-        opts = build_filter_options(df)
-
-        f1, f2, f3, f4 = st.columns([1, 1, 1, 1])
-        # Date range
-        date_range = None
-        if "Deliverdate_dt" in df.columns and df["Deliverdate_dt"].notna().any():
-            dmin = df["Deliverdate_dt"].min()
-            dmax = df["Deliverdate_dt"].max()
-            with f1:
-                picked = st.date_input(
-                    t["dist_date_range"],
-                    value=(dmin.date(), dmax.date()),
-                    min_value=dmin.date(),
-                    max_value=dmax.date(),
-                )
-            if isinstance(picked, tuple) and len(picked) == 2:
-                date_range = (pd.to_datetime(picked[0]), pd.to_datetime(picked[1]))
+        st.markdown(f"## {_t(lang, 'pulse_title')}")
+        fig2 = build_temporal_pulse(dff, freq="D")
+        if fig2 is not None:
+            st.plotly_chart(fig2, use_container_width=True)
         else:
-            with f1:
-                st.caption(t["dist_date_range"] + ": (no valid date parsed)")
+            st.info("Temporal chart unavailable (no parsable dates) or no data after filtering.")
 
-        with f2:
-            sel_sup = st.multiselect(t["dist_supplier"], opts["SupplierID"], default=[])
-        with f3:
-            sel_cat = st.multiselect(t["dist_category"], opts["Category"], default=[])
-        with f4:
-            sel_lic = st.multiselect(t["dist_license"], opts["LicenseNo"], default=[])
-
-        sel_cus = st.multiselect(t["dist_customer"], opts["CustomerID"], default=[])
-
-        df_f = apply_filters(df, date_range, sel_sup, sel_cat, sel_lic, sel_cus)
-
-        # Quick stats
-        s1, s2, s3, s4 = st.columns(4)
-        with s1:
-            st.metric("Records", f"{len(df_f):,}")
-        with s2:
-            st.metric("Units (Number)", f"{int(df_f['Number'].sum()):,}" if not df_f.empty else "0")
-        with s3:
-            st.metric("Suppliers", f"{df_f['SupplierID'].replace('', pd.NA).dropna().nunique():,}" if not df_f.empty else "0")
-        with s4:
-            st.metric("Customers", f"{df_f['CustomerID'].replace('', pd.NA).dropna().nunique():,}" if not df_f.empty else "0")
-
-        st.markdown("---")
-        st.markdown(f"#### 📈 {t['dist_viz']}")
-
-        # 5 graphs
-        g1, g2 = st.columns([1.2, 0.8], gap="large")
-        with g1:
-            st.markdown(f"##### 🕸️ {t['dist_network']}")
-            nodes, edges = build_network_graph(df_f, max_nodes_per_level=60)
-            if nodes:
-                config = Config(
-                    directed=True,
-                    hierarchical=True,
-                    physics=False,
-                    height=520,
-                    width=1000,
-                    nodeHighlightBehavior=True,
-                    highlightColor="#FEE440",
-                    collapsible=True,
-                )
-                selected = agraph(nodes=nodes, edges=edges, config=config)
-                if selected:
-                    st.markdown(node_info(df_f, selected))
-            else:
-                st.info("Network is empty after filters (or too sparse).")
-
-        with g2:
-            st.markdown(f"##### 🌊 {t['dist_sankey']}")
-            fig_sankey = build_sankey(df_f)
-            st.plotly_chart(fig_sankey, use_container_width=True)
-
-        g3, g4 = st.columns([1, 1], gap="large")
-        with g3:
-            st.markdown(f"##### ⏱️ {t['dist_timeseries']}")
-            st.plotly_chart(build_timeseries(df_f), use_container_width=True)
-        with g4:
-            st.markdown(f"##### 🏆 {t['dist_top']}")
-            fig_top_sup, fig_top_cus = build_top_bars(df_f)
-            st.plotly_chart(fig_top_sup, use_container_width=True)
-            st.plotly_chart(fig_top_cus, use_container_width=True)
-
-        st.markdown(f"##### 🔥 {t['dist_heatmap']}")
-        st.plotly_chart(build_heatmap(df_f), use_container_width=True)
-
-        st.markdown("---")
-        st.markdown(f"#### 🧾 {t['dist_summary']}")
-
-        # Summary prompt + model + keep prompt per dataset
-        default_summary_prompt = (
-            "請以繁體中文撰寫一份 1000～2000 字的 Markdown 分析摘要，內容必須根據提供的「統計摘要/Top 排行/時間範圍/分布特徵」來推導，"
-            "不要臆測不存在的欄位。請包含：\n"
-            "1) 資料概況（筆數、日期範圍、供應商/客戶/類別/許可證數量）\n"
-            "2) 主要分布與集中度（Top entities、長尾/集中）\n"
-            "3) 流向結構（Supplier→Category→License→Customer 的解讀）\n"
-            "4) 時間序列觀察（若有日期）\n"
-            "5) 合規/追溯風險觀察（如 LicenseNo/UDID/批號/序號缺漏）\n"
-            "6) 建議的儀表板與下一步分析\n"
-            "最後給出 8～12 個可行的後續分析問題。"
-        )
-
-        ds_name = st.session_state.dist_dataset_name.strip() or "dataset"
-        if ds_name not in st.session_state.dist_prompt_by_dataset:
-            st.session_state.dist_prompt_by_dataset[ds_name] = default_summary_prompt
-
-        sum_prompt = st.text_area(
-            t["dist_summary_prompt"],
-            value=st.session_state.dist_prompt_by_dataset[ds_name],
-            height=200,
-        )
-        sum_model = st.selectbox(t["dist_summary_model"], DIST_SUMMARY_MODELS, index=0)
-
-        keep_col, gen_col = st.columns([1, 1])
-        with keep_col:
-            if st.button("📌 " + t["dist_keep_prompt"], use_container_width=True):
-                st.session_state.dist_prompt_by_dataset[ds_name] = sum_prompt
-                st.toast("Prompt saved for this dataset (session).", icon="📌")
-        with gen_col:
-            do_sum = st.button("✨ " + t["dist_generate_summary"], use_container_width=True)
-
-        # Build summary input pack (avoid dumping entire dataset)
-        pack = dataset_stats_pack(df_f)
-        sample20 = df_f[STANDARD_COLS].head(20).to_dict(orient="records")
-        pack["sample_20_records"] = sample20
-
-        # Resolve key for chosen model
-        prov = infer_provider(sum_model)
-        key_map = {
-            "openai": get_api_key("OPENAI_API_KEY")[0],
-            "gemini": get_api_key("GEMINI_API_KEY")[0],
-            "anthropic": get_api_key("ANTHROPIC_API_KEY")[0],
-            "grok": get_api_key("GROK_API_KEY")[0],
-        }
-        chosen_key = key_map.get(prov)
-
-        if do_sum:
-            if not chosen_key:
-                st.error(f"Missing API key for provider '{prov}'.")
-            else:
-                sys = "你是資深資料分析師與醫療器材供應鏈/追溯性顧問。請嚴謹、可稽核、用繁體中文。"
-                usr = (
-                    f"{sum_prompt}\n\n"
-                    "以下是已篩選資料的統計摘要（JSON），以及前 20 筆樣本（僅供格式/欄位參考）。\n"
-                    "請依此撰寫，不要捏造未提供的事實。\n\n"
-                    f"STATS_JSON:\n{json.dumps(pack, ensure_ascii=False, indent=2)}\n"
-                )
-                with st.spinner("Generating summary…"):
-                    out, meta = call_llm(
-                        provider=prov,
-                        model=sum_model,
-                        api_key=chosen_key,
-                        system_prompt=sys,
-                        user_prompt=usr,
-                        max_tokens=7000,   # keep summary within bounds
-                        temperature=0.25,
-                    )
-                st.session_state.dist_summary_md = out
-                st.session_state.execution_log.append(
-                    {"ts": now_str(), "agent": "Distribution-Summary", "output": out, "meta": meta}
-                )
-                st.session_state.runs += 1
-                st.session_state.last_run_ts = now_str()
-
-        if st.session_state.dist_summary_md:
-            st.text_area("Summary (editable)", value=st.session_state.dist_summary_md, height=260)
-            st.markdown(st.session_state.dist_summary_md)
-
-        st.markdown("---")
-        st.markdown(f"#### 🤖 {t['dist_agent_run']}")
-
-        agents_cfg = st.session_state.agents_config or {"agents": []}
-        all_agents = agents_cfg.get("agents", [])
-        agent_names = [a.get("name", f"agent_{i+1}") for i, a in enumerate(all_agents)]
-
-        colA, colB, colC = st.columns([1.1, 0.9, 1.0], gap="large")
-        with colA:
-            selected_agent = st.selectbox(t["dist_select_agent"], ["—"] + agent_names, index=0)
-        with colB:
-            agent_model_override = st.selectbox("Model override", ["(use agent default)"] + DIST_SUMMARY_MODELS, index=0)
-        with colC:
-            run_agent_btn = st.button("▶️ " + t["dist_run_selected_agent"], use_container_width=True, disabled=(selected_agent == "—"))
-
-        # Build dataset input for agent: stats + markdown preview
-        df_preview_md = df_f[STANDARD_COLS].head(50).to_markdown(index=False) if not df_f.empty else "_empty_"
-        agent_input = (
-            "以下為「已篩選後」的醫療器材配送資料摘要：\n\n"
-            f"- 資料集名稱: {ds_name}\n"
-            f"- 篩選後筆數: {len(df_f)}\n"
-            f"- 統計摘要(JSON):\n{json.dumps(dataset_stats_pack(df_f), ensure_ascii=False, indent=2)}\n\n"
-            "前 50 筆（Markdown Table）：\n\n"
-            f"{df_preview_md}\n"
-        )
-
-        if run_agent_btn:
-            openai_key, _ = get_api_key("OPENAI_API_KEY")
-            gemini_key, _ = get_api_key("GEMINI_API_KEY")
-            anthropic_key, _ = get_api_key("ANTHROPIC_API_KEY")
-            grok_key, _ = get_api_key("GROK_API_KEY")
-            resolved_keys = {"openai": openai_key, "gemini": gemini_key, "anthropic": anthropic_key, "grok": grok_key}
-
-            agent_conf = next((a for a in all_agents if a.get("name") == selected_agent), None) or {}
-
-            overrides = {}
-            if agent_model_override != "(use agent default)":
-                overrides["model"] = agent_model_override
-                overrides["provider"] = infer_provider(agent_model_override)
-
-            with st.status(f"Running {selected_agent} on filtered dataset…", expanded=True) as status:
-                out, meta = run_agent(agent_conf, agent_input, overrides, resolved_keys)
-                st.markdown(out)
-                status.update(label=f"{selected_agent} Complete", state="complete")
-
-            st.session_state.execution_log.append({"ts": now_str(), "agent": selected_agent, "output": out, "meta": meta})
-            st.session_state.runs += 1
-            st.session_state.last_run_ts = now_str()
-
-
-# =========================
-# AI Note Keeper Tab (original)
-# =========================
-with tab_notes:
-    st.markdown(f"### 📝 {t['tabs_notes']}")
-
-    ncol1, ncol2, ncol3 = st.columns([1.2, 1, 1])
-    with ncol1:
-        note_model = st.selectbox("Model", MODEL_CHOICES, index=0, key="note_model")
-    with ncol2:
-        note_max = st.number_input(t["max_tokens"], min_value=256, max_value=200000, value=12000, step=256, key="note_max")
-    with ncol3:
-        note_temp = st.slider(t["temperature"], 0.0, 1.5, 0.2, 0.05, key="note_temp")
-
-    provider = infer_provider(note_model)
-    key_map = {
-        "openai": get_api_key("OPENAI_API_KEY")[0],
-        "gemini": get_api_key("GEMINI_API_KEY")[0],
-        "anthropic": get_api_key("ANTHROPIC_API_KEY")[0],
-        "grok": get_api_key("GROK_API_KEY")[0],
-    }
-    note_key = key_map.get(provider)
-
-    st.markdown("#### " + t["note_input"])
-    st.session_state.note_text = st.text_area(
-        t["note_input"],
-        value=st.session_state.note_text,
-        height=240,
-        placeholder="Paste meeting notes / raw markdown / logs…",
-        key="note_input_area",
-    )
-
-    view_mode = st.radio(t["note_view"], [t["markdown"], t["text"]], horizontal=True, key="note_view_mode")
-
-    st.markdown(f"#### ✨ {t['ai_magics']}")
-    magic1, magic2, magic3, magic4, magic5, magic6 = st.columns(6)
-
-    def note_ai(system_prompt: str, user_prompt: str) -> str:
-        if not note_key:
-            return f"(Missing API key for provider '{provider}'.)"
-        out, _meta = call_llm(
-            provider=provider,
-            model=note_model,
-            api_key=note_key,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            max_tokens=int(note_max),
-            temperature=float(note_temp),
-        )
-        st.session_state.note_last_ai = out
-        st.session_state.runs += 1
-        st.session_state.last_run_ts = now_str()
-        return out
-
-    with magic1:
-        if st.button("🧱", help=t["magic_format"], use_container_width=True):
-            sys = "You are an expert note editor. Output clean, organized markdown."
-            usr = (
-                "Transform the following note into organized Markdown.\n"
-                "Requirements:\n"
-                "- Use clear headings\n"
-                "- Add a concise summary at top\n"
-                "- Use bullet points\n"
-                "- Preserve important details; do not hallucinate\n"
-                "- If the note contains tabular data, use Markdown tables\n\n"
-                f"NOTE:\n{st.session_state.note_text}"
-            )
-            st.session_state.note_markdown = note_ai(sys, usr)
-
-    with magic2:
-        if st.button("🧠", help=t["magic_summary"], use_container_width=True):
-            sys = "You summarize notes accurately."
-            usr = f"Summarize this note in Markdown with sections: Key Points, Risks, Open Questions.\n\n{st.session_state.note_text}"
-            st.session_state.note_markdown = note_ai(sys, usr)
-
-    with magic3:
-        if st.button("✅", help=t["magic_actions"], use_container_width=True):
-            sys = "You extract action items from notes."
-            usr = (
-                "Extract action items from this note.\n"
-                "Output Markdown with a table: Action | Owner | Due | Status | Notes.\n"
-                "If owner/due/status not present, leave blank.\n\n"
-                f"{st.session_state.note_text}"
-            )
-            st.session_state.note_markdown = note_ai(sys, usr)
-
-    with magic4:
-        if st.button("🃏", help=t["magic_flashcards"], use_container_width=True):
-            sys = "You turn notes into study flashcards."
-            usr = (
-                "Create 10-20 flashcards from this note.\n"
-                "Output Markdown as:\n"
-                "## Flashcards\n"
-                "- **Q:** ...\n"
-                "  **A:** ...\n\n"
-                f"{st.session_state.note_text}"
-            )
-            st.session_state.note_markdown = note_ai(sys, usr)
-
-    with magic5:
-        if st.button("🌐", help=t["magic_translate"], use_container_width=True):
-            sys = "You translate faithfully."
-            usr = (
-                "Translate the note between English and Traditional Chinese.\n"
-                "If the note is mostly Chinese, translate to English; if mostly English, translate to Traditional Chinese.\n"
-                "Preserve formatting as Markdown.\n\n"
-                f"{st.session_state.note_text}"
-            )
-            st.session_state.note_markdown = note_ai(sys, usr)
-
-    with magic6:
-        st.button("🔦", help=t["magic_keywords"], use_container_width=True)
-
-    kw1, kw2 = st.columns([2, 1])
-    with kw1:
-        note_keywords = st.text_input("Keywords for highlight (comma-separated)", value="SupplierID,CustomerID,LicenseNo,Model", key="note_kw")
-    with kw2:
-        note_kw_color = st.color_picker("Color", value="#FEE440", key="note_kw_color")
-
-    if st.button("Apply Keyword Highlight to Markdown (HTML preview)"):
-        kws = [x.strip() for x in note_keywords.split(",") if x.strip()]
-        html = highlight_keywords_html(st.session_state.note_markdown or st.session_state.note_text, kws, note_kw_color)
-        st.markdown(html, unsafe_allow_html=True)
-
-    st.markdown("---")
-    if view_mode == t["markdown"]:
-        st.session_state.note_markdown = st.text_area(
-            "Markdown",
-            value=st.session_state.note_markdown or "",
-            height=320,
-            key="note_md_edit",
-        )
-        st.markdown(st.session_state.note_markdown or "")
-    else:
-        st.session_state.note_text = st.text_area(
-            "Text",
-            value=st.session_state.note_text or "",
-            height=320,
-            key="note_text_edit",
-        )
-
-    st.markdown("---")
-    st.markdown(f"#### 💬 {t['ask_on_note']}")
-    user_q = st.text_input("Prompt", value="", key="note_ask_prompt")
-    if st.button("💬 " + t["ask"], use_container_width=True):
-        if not note_key:
-            st.error(f"Missing API key for provider '{provider}'.")
+        st.markdown(f"## {_t(lang, 'mosaic_title')}")
+        fig3 = build_mosaic_heatmap(dff, top_n_customers=min(40, max(15, flt["top_n"])), top_n_models=min(30, max(12, flt["top_n"] // 2)))
+        if fig3 is not None:
+            st.plotly_chart(fig3, use_container_width=True)
         else:
-            sys = "You are a helpful assistant. Use the note as the primary context."
-            note_context = st.session_state.note_markdown or st.session_state.note_text
-            usr = f"NOTE CONTEXT:\n{note_context}\n\nUSER REQUEST:\n{user_q}\n\nReturn in Markdown."
-            ans = note_ai(sys, usr)
-            st.markdown(ans)
+            st.info("Heatmap unavailable or no data after filtering.")
 
-
-# =========================
-# History Tab (original)
-# =========================
-with tab_history:
-    st.markdown(f"### 🕰️ {t['history']}")
-    if not st.session_state.execution_log:
-        st.info("No runs yet.")
-    else:
-        for rec in reversed(st.session_state.execution_log[-200:]):
-            meta = rec.get("meta", {}) or {}
-            header = f"{rec.get('ts','')} — {rec.get('agent','')} ({meta.get('provider','')}/{meta.get('model','')})"
-            with st.expander(header, expanded=False):
-                st.markdown(rec.get("output", ""))
-
-
-# =========================
-# Settings Tab (agents.yaml editor)
-# =========================
-with tab_settings:
-    st.markdown(f"### ⚙️ {t['tabs_settings']}")
-    st.markdown(
-        f"<div class='wow-card'><b>{t['agents_yaml_editor']}</b><br/>Edit YAML, save, and your Agents list updates immediately.</div>",
-        unsafe_allow_html=True,
-    )
-    st.write("")
-
-    with st.expander("🧾 agents.yaml", expanded=True):
-        yaml_content = yaml.safe_dump(st.session_state.agents_config, sort_keys=False, allow_unicode=True)
-        new_yaml = st.text_area("YAML", yaml_content, height=360)
-
-        c1, c2 = st.columns([1, 3])
+    with tab2:
+        charts = build_classic_charts(dff, top_n=min(25, max(10, flt["top_n"] // 2)))
+        c1, c2 = st.columns(2)
         with c1:
-            if st.button("💾 " + t["save_config"], use_container_width=True):
-                try:
-                    parsed = yaml.safe_load(new_yaml) or {"agents": []}
-                    if "agents" not in parsed or not isinstance(parsed["agents"], list):
-                        raise ValueError("YAML must have top-level key: agents: [ ... ]")
-                    st.session_state.agents_config = parsed
-                    save_agents_config(parsed)
-                    st.success(t["saved"])
-                except Exception as e:
-                    st.error(f"{t['invalid_yaml']}: {e}")
+            st.markdown(f"### {_t(lang, 'timeline')}")
+            if "timeline" in charts:
+                st.plotly_chart(charts["timeline"], use_container_width=True)
+            else:
+                st.info("No timeline data.")
+
+            st.markdown(f"### {_t(lang, 'top_customers')}")
+            if "top_customers" in charts:
+                st.plotly_chart(charts["top_customers"], use_container_width=True)
+            else:
+                st.info("No customer ranking data.")
 
         with c2:
-            st.caption("Tip: Each agent can include: name, provider(optional), model, system_prompt, prompt, temperature, max_tokens.")
+            st.markdown(f"### {_t(lang, 'model_dist')}")
+            if "model_dist" in charts:
+                st.plotly_chart(charts["model_dist"], use_container_width=True)
+            else:
+                st.info("No model distribution data.")
+
+            st.markdown(f"### {_t(lang, 'license_usage')}")
+            if "license_usage" in charts:
+                st.plotly_chart(charts["license_usage"], use_container_width=True)
+            else:
+                st.info("No license usage data.")
+
+
+def page_agents_studio(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_agents')}")
+    status_strip(lang)
+
+    if yaml is None:
+        st.error("PyYAML is not installed. Agents Studio requires PyYAML.")
+        return
+
+    st.markdown(f"## {_t(lang, 'agents_yaml')}")
+
+    # Load current YAML from session or disk/fallback
+    if "agents_yaml_raw" not in st.session_state:
+        disk_yaml = safe_load_text(DEFAULT_AGENTS_YAML_PATH, DEFAULT_AGENTS_YAML_FALLBACK)
+        st.session_state["agents_yaml_raw"] = disk_yaml
+        standardized, w = standardize_agents_yaml(disk_yaml)
+        st.session_state["agents_yaml_std"] = standardized
+        st.session_state["agents_yaml_warnings"] = w
+
+    colL, colR = st.columns([1, 1])
+
+    with colL:
+        st.markdown(f"### {_t(lang, 'paste_agents_yaml')}")
+        pasted = st.text_area("", value="", height=160, placeholder="Paste YAML here")
+
+        uploaded = st.file_uploader(_t(lang, "upload_agents_yaml"), type=["yaml", "yml"])
+
+        if st.button(_t(lang, "standardize"), type="primary"):
+            raw = ""
+            if uploaded is not None:
+                raw = try_read_text_file(uploaded)
+            elif pasted.strip():
+                raw = pasted
+            else:
+                raw = st.session_state.get("agents_yaml_raw", "")
+
+            std, w = standardize_agents_yaml(raw)
+            st.session_state["agents_yaml_raw"] = raw
+            st.session_state["agents_yaml_std"] = std
+            st.session_state["agents_yaml_warnings"] = w
+
+    with colR:
+        st.markdown(f"### {_t(lang, 'yaml_status')}")
+        w = st.session_state.get("agents_yaml_warnings", [])
+        if w:
+            st.warning("\n".join([f"- {x}" for x in w]))
+        else:
+            st.success("Standardized YAML is ready.")
+
+        std_text = st.session_state.get("agents_yaml_std", DEFAULT_AGENTS_YAML_FALLBACK)
+        st.download_button(
+            label=_t(lang, "download_yaml"),
+            data=std_text.encode("utf-8"),
+            file_name="agents.standardized.yaml",
+            mime="text/yaml",
+        )
+
+        if st.button(_t(lang, "import_yaml")):
+            # Validate minimally: must contain agents list
+            try:
+                obj = yaml.safe_load(std_text)
+                if not isinstance(obj, dict) or "agents" not in obj:
+                    st.error("Invalid standardized YAML: missing 'agents'.")
+                else:
+                    st.session_state["agents_yaml_active"] = std_text
+                    st.success("Imported standardized YAML into active config (session).")
+            except Exception as e:
+                st.error(f"Import failed: {e}")
+
+    st.markdown("### Active standardized YAML (editable)")
+    edited = st.text_area("", value=st.session_state.get("agents_yaml_std", DEFAULT_AGENTS_YAML_FALLBACK), height=420)
+    st.session_state["agents_yaml_std"] = edited
+
+    st.markdown(f"## {_t(lang, 'skill_md')}")
+    skill = safe_load_text(DEFAULT_SKILL_MD_PATH, DEFAULT_SKILL_MD_FALLBACK)
+    st.code(skill, language="markdown")
+
+
+def page_settings_keys(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_settings')}")
+    status_strip(lang)
+
+    if "api_keys" not in st.session_state:
+        st.session_state["api_keys"] = {}
+
+    st.info(_t(lang, "never_shown") + ": env keys are detected but never displayed.")
+
+    for p in PROVIDERS:
+        st.markdown(f"## {p.upper()} — {_t(lang, 'settings')}")
+        env_key = get_env_key(p)
+        ses_key = get_session_key(p)
+
+        if env_key:
+            st.success(f"{_t(lang, 'configured_env')}")
+            st.caption(_t(lang, "never_shown"))
+        elif ses_key:
+            st.success(f"{_t(lang, 'configured_session')}: {mask_key(ses_key)}")
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button(_t(lang, "clear_key"), key=f"clear_{p}"):
+                    st.session_state["api_keys"][p] = ""
+                    st.rerun()
+            with col2:
+                st.caption("Stored in session only.")
+        else:
+            st.warning(_t(lang, "missing"))
+            key_in = st.text_input(_t(lang, "enter_key"), type="password", key=f"key_in_{p}")
+            if st.button(_t(lang, "save_key"), key=f"save_{p}", type="primary"):
+                if key_in.strip():
+                    st.session_state["api_keys"][p] = key_in.strip()
+                    st.rerun()
+                else:
+                    st.error("Empty key.")
+
+
+def page_ai_note_keeper(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_note_keeper')}")
+    status_strip(lang)
+
+    online = any_provider_configured()
+    st.caption(_t(lang, "online_mode") if online else _t(lang, "offline_mode"))
+    if not online:
+        st.warning(_t(lang, "not_configured_ai"))
+
+    note = st.text_area(_t(lang, "note_input"), height=220, placeholder="Paste meeting notes / audit notes / markdown…")
+    default_prompt_en = """Transform the pasted notes into organized Markdown with:
+- Title
+- Summary (3–7 bullets)
+- Key Points
+- Actions/Owners/Due Dates (table if possible)
+- Risks & Compliance Impact
+- Open Questions
+- Extracted Keywords
+Highlight keywords in coral color.
+"""
+    default_prompt_zh = """將貼上的筆記整理成結構化 Markdown，包含：
+- 標題
+- 摘要（3–7 點）
+- 重點
+- 行動/負責人/到期日（可用表格）
+- 風險與合規影響
+- 待釐清問題
+- 擷取關鍵字
+並以珊瑚色標示關鍵字。
+"""
+    prompt = st.text_area(_t(lang, "note_prompt"), height=140, value=default_prompt_zh if lang == "zh-TW" else default_prompt_en)
+
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        model = st.selectbox(_t(lang, "note_model"), options=SUPPORTED_MODELS, index=0)
+    with col2:
+        max_tokens = st.number_input(_t(lang, "note_maxtokens"), min_value=256, max_value=200000, value=12000, step=256)
+    with col3:
+        st.caption("")
+
+    # For this single-file app, the LLM call is intentionally not implemented to avoid fragile provider SDK dependencies.
+    # Offline transformation is always available and safe.
+    if st.button(_t(lang, "transform"), type="primary"):
+        md = organize_notes_offline(note, lang)
+        st.session_state["note_output_md"] = md
+
+    st.markdown(f"## {_t(lang, 'ai_magics')}")
+    with st.expander(_t(lang, "ai_keywords"), expanded=True):
+        kws = st.text_input(_t(lang, "keywords_list"), value="")
+        color = st.color_picker(_t(lang, "keyword_color"), value=KEYWORD_DEFAULT_COLOR)
+        if st.button(_t(lang, "apply_keywords"), use_container_width=True):
+            out = st.session_state.get("note_output_md", "")
+            kw_list = [k.strip() for k in kws.split(",") if k.strip()]
+            highlighted = highlight_keywords_html(out, kw_list, color)
+            st.session_state["note_output_md"] = highlighted
+
+    st.markdown(f"## {_t(lang, 'output')}")
+    out = st.session_state.get("note_output_md", "")
+    if out:
+        # Render markdown with HTML spans for keyword highlighting
+        st.markdown(out, unsafe_allow_html=True)
+        st.download_button("Download markdown", data=out.encode("utf-8"), file_name="note.organized.md", mime="text/markdown")
+    else:
+        st.info("No output yet. Transform notes to generate organized markdown.")
+
+
+def page_command_center(lang: str) -> None:
+    st.markdown(f"# {_t(lang, 'nav_command_center')}")
+    status_strip(lang)
+    st.markdown(
+        """
+        This page is a placeholder for the Regulatory Dashboard (v2 parity) in Streamlit.
+        Recommended next steps:
+        - Add regulatory datasets (510k, recalls, ADR, GUDID) ingestion
+        - Implement unified search + result cards
+        - Add decision code distribution and severity indicators
+        - Connect “Analyze” buttons to the Agent Pipeline Runner
+        """
+    )
+
+
+# -----------------------------------
+# Main
+# -----------------------------------
+
+def init_session_defaults() -> None:
+    if "lang" not in st.session_state:
+        st.session_state["lang"] = "en"
+    if "theme_name" not in st.session_state:
+        st.session_state["theme_name"] = list(painter_themes().keys())[0]
+    if "theme_mode" not in st.session_state:
+        st.session_state["theme_mode"] = "light"
+    if "api_keys" not in st.session_state:
+        st.session_state["api_keys"] = {}
+    if "pipeline_state" not in st.session_state:
+        st.session_state["pipeline_state"] = {"status": "idle", "last_run": None}
+    if "use_default_dataset" not in st.session_state:
+        st.session_state["use_default_dataset"] = True
+
+
+def main() -> None:
+    st.set_page_config(page_title=APP_TITLE, layout="wide")
+
+    init_session_defaults()
+    # Sidebar controls can change language; use current session lang for initial draw
+    lang = st.session_state.get("lang", "en")
+    wow_header_controls(lang)
+
+    # Apply CSS after selection
+    lang = st.session_state.get("lang", "en")
+    apply_theme_css(st.session_state.get("theme_name"), st.session_state.get("theme_mode"), lang)
+
+    # Nav
+    page = st.sidebar.radio(
+        "Navigation",
+        options=[
+            _t(lang, "nav_command_center"),
+            _t(lang, "nav_distribution"),
+            _t(lang, "nav_note_keeper"),
+            _t(lang, "nav_agents"),
+            _t(lang, "nav_settings"),
+        ],
+    )
+
+    # Global search placeholder (context-aware hook)
+    st.sidebar.text_input(_t(lang, "global_search"), value="", key="global_search")
+
+    if page == _t(lang, "nav_distribution"):
+        page_distribution_lab(lang)
+    elif page == _t(lang, "nav_note_keeper"):
+        page_ai_note_keeper(lang)
+    elif page == _t(lang, "nav_agents"):
+        page_agents_studio(lang)
+    elif page == _t(lang, "nav_settings"):
+        page_settings_keys(lang)
+    else:
+        page_command_center(lang)
+
+
+if __name__ == "__main__":
+    main()
