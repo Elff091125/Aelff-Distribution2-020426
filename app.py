@@ -1603,7 +1603,7 @@ def page_settings_keys(lang: str) -> None:
                 else:
                     st.error("Empty key.")
 
-
+###
 def page_agents_studio(lang: str) -> None:
     st.markdown(f"# {_t(lang, 'nav_agents')}")
     status_strip(lang)
@@ -1680,6 +1680,7 @@ def page_agents_studio(lang: str) -> None:
     skill = safe_load_text(DEFAULT_SKILL_MD_PATH, DEFAULT_SKILL_MD_FALLBACK)
     st.code(skill, language="markdown")
 
+###
 
 def page_settings_keys(lang: str) -> None:
     st.markdown(f"# {_t(lang, 'nav_settings')}")
